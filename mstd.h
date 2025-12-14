@@ -91,13 +91,6 @@ typedef double f64;
 #define is_pow2(value)          ((value)!=0 && ((value)&((value)-1))==0)
 #define is_pow2_or_0(value)    ((((value) - 1)&(value)) == 0)
 
-#define bit_at(value, i)    (((value) >> (i)) & 1)
-#define bit_activate(value, i)   ((value) | (1U << (i)))
-#define bit_deactivate(value, i) ((value) & ~(1U << (i)))
-#define bit_flip(value, i)  ((value) ^ (1U << (i)))
-
-#define bit_set(value, i, v) (((value) & ~(1U << (i))) | ((v) << (i)))
-
 #define get_min(a, b) ((a) < (b)) ? a : b
 #define get_max(a, b) ((a) > (b)) ? a : b
 #define clamp(low, high, value) get_min(get_max(low, value), high)
@@ -218,6 +211,7 @@ str16 str16_of_size(u64 size, Arena* arena);
 str16 str16_from_cstr(const u16* str);
 #define str16_literal(literal) str16_from_cstr((u16*)literal)
 str16 str16_copy(const str16 str, Arena* arena);
+str16 str16_from_str8(str8 str, Arena* arena);
 
 // ----------------------------------------------------------------------------
 // IMPLEMENTATION
@@ -593,6 +587,12 @@ void os_decommit(void* ptr, u64 size) {
 void os_release(void* ptr, u64 size) {
     UNUSED(size); // because windows
     VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
+str16 str16_from_str8(str8 str, Arena* arena) {
+    str16 result = str16_of_size(str.size, arena);
+    MultiByteToWideChar(CP_UTF8, 0, (const char*)str.str, (int)str.size, result.str, (int)result.size);
+    return result;
 }
 
 #endif
