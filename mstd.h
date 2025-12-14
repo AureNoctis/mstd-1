@@ -100,7 +100,7 @@ typedef double f64;
 
 #define get_min(a, b) ((a) < (b)) ? a : b
 #define get_max(a, b) ((a) > (b)) ? a : b
-#define clamp(low, high, value) min(max(low, value), high)
+#define clamp(low, high, value) get_min(get_max(low, value), high)
 
 #define KB(value) ((value) << 10)
 #define MB(value) ((value) << 20)
@@ -171,7 +171,6 @@ b8 os_commit(void* ptr, u64 size);
 b8 os_commit_large(void* ptr, u64 size);
 void os_decommit(void* ptr, u64 size);
 void os_release(void* ptr, u64 size);
-b64 os_get_random_bits();
 
 ////////////////////////////////
 // RANDOM
@@ -195,7 +194,7 @@ u8 char_to_upper(u8 c);
 
 u64 cstr8_length(u8* c);
 
-b32 str8_equal(const str8 a, const str8 b);
+b8 str8_equal(const str8 a, const str8 b);
 str8 str8_from_cstr(const u8* str);
 #define str8_literal(literal) str8_from_cstr((u8*)literal)
 str8 str8_of_size(u64 size, Arena* arena);
@@ -223,7 +222,6 @@ str16 str16_copy(const str16 str, Arena* arena);
 // ----------------------------------------------------------------------------
 // IMPLEMENTATION
 // ----------------------------------------------------------------------------
-#define MSTD_IMPLEMENTATION
 #if defined(MSTD_IMPLEMENTATION)
 
 #include <string.h>
@@ -307,10 +305,10 @@ void* arena_push(Arena* arena, const u64 size, const u64 alignment) {
     u64 end_pos = begin_pos + size;
 
     if (arena->commited < end_pos) {
-        u64 commit_size = min(align_up_pow2(end_pos, arena->commit_size), arena->reserved) - arena->commited;
+        u64 commit_size = get_min(align_up_pow2(end_pos, arena->commit_size), arena->reserved) - arena->commited;
 
         void* commit_ptr = (void*)(arena->base + arena->commited);
-        b32 commit_success = 0;
+        b8 commit_success = 0;
 
         if (arena->has_large_pages)
             commit_size = os_commit_large(commit_ptr, commit_size);
@@ -438,7 +436,7 @@ str8 str8_concat(const str8 a, const str8 b, Arena* arena) {
     return result;
 }
 
-b32 str8_equal(const str8 a, const str8 b) {
+b8 str8_equal(const str8 a, const str8 b) {
     return (a.size == b.size) ? mem_compare(a.str, b.str, a.size) : 0;
 }
 
