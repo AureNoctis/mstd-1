@@ -284,7 +284,7 @@ Arena* arena_alloc(const ArenaCreateInfo create_info) {
     }
 
     Arena* arena = (Arena*)base;
-    arena->base = base;
+    arena->base = (u8*)base;
     arena->commit_size = commit_size;
     arena->commited = commit_size;
     arena->cursor = 0;
