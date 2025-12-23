@@ -5,9 +5,9 @@
 // INTERFACE
 // ----------------------------------------------------------------------------
 
-#include "core/mstd_base.h"
-#include "core/mstd_memory.h"
-#include "core/mstd_os.h"
+#include "base/mstd_base.h"
+#include "base/mstd_memory.h"
+#include "os/mstd_os.h"
 
 // ----------------------------------------------------------------------------
 // IMPLEMENTATION
@@ -15,10 +15,10 @@
 
 #if defined(MSTD_IMPLEMENTATION)
 
-#include "core/mstd_memory.cpp"
+#include "base/mstd_memory.c"
 
 #if defined(OS_WINDOWS)
-    #include "core/mstd_os_win32.cpp"
+    #include "os/core/mstd_os_win32.c"
 #endif
 
 #endif // MSTD_IMPLEMENTATION

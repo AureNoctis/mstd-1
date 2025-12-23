@@ -7,6 +7,7 @@
 // Memory Helpers
 
 #include <string.h>
+#include <stdalign.h>
 
 #define mem_zero(p, size) memset((p), 0, (size))
 #define mem_zero_struct(p) mem_zero((p), sizeof(*(p)))
@@ -22,8 +23,8 @@
 ////////////////////////////////
 // Arena
 
-struct Arena;
-struct ArenaScratch;
+typedef struct Arena Arena;
+typedef struct ArenaScratch ArenaScratch;
 
 Arena* arena_alloc(u64 to_reserve, u64 to_commit, b8 commit_large_pages);
 void* arena_push(Arena* arena, u64 size, u64 align);
@@ -32,6 +33,7 @@ void* arena_push(Arena* arena, u64 size, u64 align);
 
 ArenaScratch* arena_begin_scratch(Arena* arena);
 void arena_scratch_end(ArenaScratch* scratch);
+
 #define arena_scratch(arena) \
     for (ArenaScratch* _scratch_ptr = arena_begin_scratch(arena); _scratch_ptr != NULL; \
          arena_scratch_end(_scratch_ptr), _scratch_ptr = NULL)

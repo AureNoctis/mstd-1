@@ -4,7 +4,7 @@
 #define ARENA_HEADER_ALIGNMENT 128
 #define ARENA_BASE_ALIGNMENT 16
 
-struct Arena {
+typedef struct Arena {
     void* memory;
     u64 arena_base_offset;
     u64 offset;
@@ -12,12 +12,12 @@ struct Arena {
     u64 commited;
     u64 commit_size;
     b8 is_commiting_large_pages;
-};
+}Arena;
 
-struct ArenaScratch {
+typedef struct ArenaScratch {
     Arena* arena;
     u64 original_offset;
-};
+}ArenaScratch;
 
 Arena* arena_alloc(u64 to_reserve, u64 to_commit, b8 commit_large_pages) {
     u64 page_size = (commit_large_pages) ? os_get_large_page_size() : os_get_page_size();

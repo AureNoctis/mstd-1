@@ -84,6 +84,9 @@
 // Basic Types
 
 #include <stdint.h>
+
+
+
 typedef int8_t   i8;
 typedef int16_t  i16;
 typedef int32_t  i32;
@@ -136,10 +139,6 @@ typedef uintptr_t uaddress;
 
 #define clamp_top(val, high)    min(val, high)
 #define clamp_bottom(val, low)  max(val, low)
-
-#define c_linkage_begin extern "C"{
-#define c_linkage_end }
-#define c_linkage extern "C"
 
 ////////////////////////////////
 // Math
