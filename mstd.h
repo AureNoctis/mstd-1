@@ -88,11 +88,11 @@
 
 #define mem_zero(p, size) memset((p), 0, (size))
 #define mem_zero_struct(p) mem_zero((p), sizeof(*(p)))
-#define mem_zero_array(p) mem_zero((p), sizeof(p))
+#define mem_zero_array(p, count) mem_zero((p), sizeof(*(p)) * (count))
 
 #define mem_copy(dest, src, size) memcpy((dest), (src), (size))
 #define mem_copy_struct(dest, src) mem_copy((dest), (src), sizeof(*(dest)))
-#define mem_copy_array(dest, src, size) mem_copy((dest), (src), sizeof(dest))
+#define mem_copy_array(dest, src, count) mem_copy((dest), (src), sizeof(*(dest)) * (count))
 
 #define mem_move(dest, src, size) memmove((dest), (src), (size))
 #define mem_match(a, b, size) (memcmp((a), (b), (size)) == 0)
@@ -190,8 +190,6 @@ typedef u64 b64;
 typedef float  f32;
 typedef double f64;
 
-typedef intptr_t  isize;
-typedef uintptr_t usize;
 typedef intptr_t  iptr;
 typedef uintptr_t uptr;
 
@@ -225,58 +223,70 @@ enum ArenaFlag {
 typedef struct Arena Arena;
 struct Arena {
     enum_t(ArenaFlag, b64) flags;
-    usize reserved;
-    usize cursor;
-    usize commited;
+    u64 reserved;
+    u64 cursor;
+    u64 commited;
 };
 
 typedef struct ArenaTemp ArenaTemp;
 struct ArenaTemp {
     Arena* arena;
-    usize cursor;
+    u64 cursor;
 };
 
 typedef struct ArenaScratch ArenaScratch;
 struct ArenaScratch {
     Arena* arena;
-    usize index;
+    u64 index;
 };
 
-function Arena* arena_alloc(usize reserve_size, ArenaFlag flag);
+function Arena* arena_alloc(u64 reserve_size, ArenaFlag flag);
 
-function void* arena_push(Arena* arena, usize size, usize align);
+function void* arena_push(Arena* arena, u64 size, u64 align);
 #define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), align_of(T))
 #define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * count, align_of(T))
 
 function void arena_reset(Arena* arena);
 function void arena_release(Arena *arena);
 
-function ArenaTemp* arena_temp_begin(Arena* arena);
-function void arena_temp_end(ArenaTemp* temp);
-#define arena_temp(arena) for (ArenaTemp* _temp = arena_temp_begin(arena); _temp != NULL; arena_temp_end(_temp), _temp = NULL)
+function ArenaTemp arena_temp_begin(Arena* arena);
+function void arena_temp_end(ArenaTemp temp);
+#define arena_temp(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
 
 function ArenaScratch arena_scratch_begin(void);
 function void arena_scratch_end(ArenaScratch scratch);
 
 ////////////////////////////////
-// Types: str8, str16, str32
+// Types: Str8, Str16, Str32
 
-typedef struct str8 str8;
-struct str8 {
+typedef struct Str8 Str8;
+struct Str8 {
     u8* c_str;
-    usize size;
+    u64 size;
 };
 
-typedef struct str16 str16;
-struct str16 {
+typedef struct Str8View Str8View;
+struct Str8View {
+    u8* c_str;
+    u64 size;
+};
+
+typedef struct Str8List Str8List;
+struct Str8List {
+    Str8 str8_node;
+    Str8List* next;
+};
+
+typedef struct Str16 Str16;
+struct Str16 {
     u16* c_str;
-    usize size;
+    u64 size;
 };
 
-typedef struct str32 str32;
-struct str32 {
+typedef struct Str32 Str32;
+struct Str32 {
     u32* c_str;
-    usize size;
+    u64 size;
 };
 
 typedef struct UnicodeDecode UnicodeDecode;
@@ -296,21 +306,25 @@ struct UnicodeDecode {
 #define str8_char_to_upper(c) (u8)toupper(c)
 #define str8_char_to_lower(c) (u8)tolower(c)
 
-function str8 str8_from_cstr(u8* str);
+function Str8 str8_from_cstr(u8* str);
 #define str8_literal(literal) str8_from_cstr((u8*)literal)
 
-function void str8_to_lower(str8 string);
-function void str8_to_upper(str8 string);
-function b8 str8_equal(str8 a, str8 b);
+function Str8 str8_of_size(Arena* arena, u64 size);
 
-function str16 str16_from_cstr(u16* str);
+function void str8_to_lower(Str8 text);
+function void str8_to_upper(Str8 text);
+function b8 str8_equal(Str8 a, Str8 b);
+function Str16 str16_from_cstr(u16* str);
 #define str16_literal(literal) str16_from_cstr((u16*)literal)
-function b8 str16_equal(str16 a, str16 b);
+function b8 str16_equal(Str16 a, Str16 b);
 
-function str8 str8_from_16(Arena* arena, str16 string);
-function str16 str16_from_8(Arena* arena, str8 string);
-function str8 str8_from_32(Arena* arena, str32 string);
-function str32 str32_from_8(Arena* arena, str8 string);
+function Str8 str8_from_16(Arena* arena, Str16 text);
+function Str16 str16_from_8(Arena* arena, Str8 text);
+function Str8 str8_from_32(Arena* arena, Str32 text);
+function Str32 str32_from_8(Arena* arena, Str8 text);
+
+function Str8 str8_copy(Arena* arena, Str8 text);
+function Str16 str16_copy(Arena* arena, Str16 text);
 
 ////////////////////////////////
 // OS: Core
@@ -318,9 +332,9 @@ function str32 str32_from_8(Arena* arena, str8 string);
 typedef struct OS_SystemInfo OS_SystemInfo;
 struct OS_SystemInfo {
     u32 logical_processor_count;
-    usize page_size;
-    usize large_page_size;
-    usize allocation_granularity;
+    u64 page_size;
+    u64 large_page_size;
+    u64 allocation_granularity;
 };
 
 typedef struct OS_ProcessInfo OS_ProcessInfo;
@@ -335,16 +349,17 @@ function OS_ProcessInfo* os_get_process_info(void);
 ////////////////////////////////
 // OS: Memory Helpers
 
-function void* os_reserve(usize size);
-function void* os_reserve_large(usize size);
-function b8 os_commit(void* ptr, usize size);
-function b8 os_commit_large(void* ptr, usize size);
-function void os_decommit(void* ptr, usize size);
-function void os_release(void* ptr, usize size);
+function void* os_reserve(u64 size);
+function void* os_reserve_large(u64 size);
+function b8 os_commit(void* ptr, u64 size);
+function b8 os_commit_large(void* ptr, u64 size);
+function void os_decommit(void* ptr, u64 size);
+function void os_release(void* ptr, u64 size);
 
 ////////////////////////////////
 // OS: FileSystem Helpers
 
-// function void os_file_read(Arena* arena, str8 file_name);
+function Str8 os_file_read(Arena* arena, Str8 file_name);
+function b32 os_file_write(Str8List* first_node, Str8 file_name);
 
 #endif // MSTD_H
