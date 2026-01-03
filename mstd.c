@@ -113,45 +113,53 @@ function void arena_scratch_end(ArenaScratch scratch) {
 
 function Str8 str8_from_cstr(u8* str) {
     Str8 text;
-    text.c_str = str;
+    text.data = str;
     text.size = strlen((char*)str);
     return text;
 }
 
 function Str8 str8_of_size(Arena* arena, u64 size) {
     Str8 text;
-    text.c_str = arena_push_array(arena, u8, size + 1);
+    text.data = arena_push_array(arena, u8, size + 1);
     text.size = size;
-    text.c_str[text.size] = 0;
+    text.data[text.size] = 0;
+    return text;
+}
+
+function Str16 str16_of_size(Arena* arena, u64 size) {
+    Str16 text;
+    text.data = arena_push_array(arena, u16, size + 1);
+    text.size = size;
+    text.data[text.size] = 0;
     return text;
 }
 
 function void str8_to_lower(Str8 text) {
     for (u64 i = 0; i < text.size; i++) {
-        text.c_str[i] = str8_char_to_lower(text.c_str[i]);
+        text.data[i] = str8_char_to_lower(text.data[i]);
     }
 }
 
 function void str8_to_upper(Str8 text) {
     for (u64 i = 0; i < text.size; i++) {
-        text.c_str[i] = str8_char_to_upper(text.c_str[i]);
+        text.data[i] = str8_char_to_upper(text.data[i]);
     }
 }
 
 function b8 str8_equal(Str8 a, Str8 b) {
-    return (a.size == b.size) ? mem_match(a.c_str, b.c_str, a.size) : 0;
+    return (a.size == b.size) ? mem_match(a.data, b.data, a.size) : 0;
 }
 
 function Str16 str16_from_cstr(u16* str) {
     Str16 text;
-    text.c_str = str;
+    text.data = str;
     text.size = 0;
-    while (text.c_str[text.size] != 0) text.size++;
+    while (text.data[text.size] != 0) text.size++;
     return text;
 }
 
 function b8 str16_equal(Str16 a, Str16 b) {
-    return (a.size == b.size) ? mem_match(a.c_str, b.c_str, a.size * sizeof(u16)) : 0;
+    return (a.size == b.size) ? mem_match(a.data, b.data, a.size * sizeof(u16)) : 0;
 }
 
 
@@ -281,7 +289,7 @@ internal function u32 utf16_size(u32 cp) {
 function Str8 str8_from_16(Arena* arena, Str16 text) {
     Str8 result = { 0 };
 
-    u16* ptr = text.c_str;
+    u16* ptr = text.data;
     u16* opl = ptr + text.size;
     u64 size = 0;
 
@@ -293,7 +301,7 @@ function Str8 str8_from_16(Arena* arena, Str16 text) {
 
     u8* out = arena_push_array(arena, u8, size + 1);
 
-    ptr = text.c_str;
+    ptr = text.data;
     u64 at = 0;
     for (; ptr < opl; ) {
         UnicodeDecode d = utf16_decode(ptr, opl - ptr);
@@ -302,7 +310,7 @@ function Str8 str8_from_16(Arena* arena, Str16 text) {
     }
 
     out[size] = 0;
-    result.c_str = out;
+    result.data = out;
     result.size = size;
     return result;
 }
@@ -311,7 +319,7 @@ function Str16 str16_from_8(Arena* arena, Str8 text) {
     Str16 result = { 0 };
     if (!text.size) return result;
 
-    u8* ptr = text.c_str;
+    u8* ptr = text.data;
     u8* opl = ptr + text.size;
 
     u64 size = 0;
@@ -323,7 +331,7 @@ function Str16 str16_from_8(Arena* arena, Str8 text) {
 
     u16* out = arena_push_array(arena, u16, size + 1);
 
-    ptr = text.c_str;
+    ptr = text.data;
     u64 at = 0;
     for (; ptr < opl; ) {
         UnicodeDecode d = utf8_decode(ptr, opl - ptr);
@@ -333,7 +341,7 @@ function Str16 str16_from_8(Arena* arena, Str8 text) {
 
     out[size] = 0;
 
-    result.c_str = out;
+    result.data = out;
     result.size = size;
     return result;
 }
@@ -342,7 +350,7 @@ function Str8 str8_from_32(Arena* arena, Str32 text) {
     Str8 result = { 0 };
     if (!text.size) return result;
 
-    u32* ptr = text.c_str;
+    u32* ptr = text.data;
     u32* opl = ptr + text.size;
 
     u64 size = 0;
@@ -353,12 +361,12 @@ function Str8 str8_from_32(Arena* arena, Str32 text) {
     u8* out = arena_push_array(arena, u8, size + 1);
 
     u64 at = 0;
-    for (ptr = text.c_str; ptr < opl; ptr++) {
+    for (ptr = text.data; ptr < opl; ptr++) {
         at += utf8_encode(out + at, *ptr);
     }
 
     out[size] = 0;
-    result.c_str = out;
+    result.data = out;
     result.size = size;
     return result;
 }
@@ -367,7 +375,7 @@ function Str32 str32_from_8(Arena* arena, Str8 text) {
     Str32 result = { 0 };
     if (!text.size) return result;
 
-    u8* ptr = text.c_str;
+    u8* ptr = text.data;
     u8* opl = ptr + text.size;
 
     u64 size = 0;
@@ -379,7 +387,7 @@ function Str32 str32_from_8(Arena* arena, Str8 text) {
 
     u32* out = arena_push_array(arena, u32, size + 1);
 
-    ptr = text.c_str;
+    ptr = text.data;
     u64 at = 0;
     for (; ptr < opl; ) {
         UnicodeDecode d = utf8_decode(ptr, opl - ptr);
@@ -388,14 +396,21 @@ function Str32 str32_from_8(Arena* arena, Str8 text) {
     }
 
     out[size] = 0;
-    result.c_str = out;
+    result.data = out;
     result.size = size;
     return result;
 }
 
 function Str8 str8_copy(Arena* arena, Str8 text) {
     Str8 string = str8_of_size(arena, text.size);
-    mem_copy_array(string.c_str, text.c_str, text.size);
-    string.c_str[string.size] = 0;
+    mem_copy_array(string.data, text.data, text.size);
+    string.data[string.size] = 0;
+    return string;
+}
+
+function Str16 str16_copy(Arena* arena, Str16 text) {
+    Str16 string = str16_of_size(arena, text.size);
+    mem_copy_array(string.data, text.data, text.size);
+    string.data[string.size] = 0;
     return string;
 }

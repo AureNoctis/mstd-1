@@ -261,13 +261,13 @@ function void arena_scratch_end(ArenaScratch scratch);
 
 typedef struct Str8 Str8;
 struct Str8 {
-    u8* c_str;
+    u8* data;
     u64 size;
 };
 
 typedef struct Str8View Str8View;
 struct Str8View {
-    u8* c_str;
+    u8* data;
     u64 size;
 };
 
@@ -279,13 +279,13 @@ struct Str8List {
 
 typedef struct Str16 Str16;
 struct Str16 {
-    u16* c_str;
+    u16* data;
     u64 size;
 };
 
 typedef struct Str32 Str32;
 struct Str32 {
-    u32* c_str;
+    u32* data;
     u64 size;
 };
 
@@ -310,6 +310,7 @@ function Str8 str8_from_cstr(u8* str);
 #define str8_literal(literal) str8_from_cstr((u8*)literal)
 
 function Str8 str8_of_size(Arena* arena, u64 size);
+function Str16 str16_of_size(Arena* arena, u64 size);
 
 function void str8_to_lower(Str8 text);
 function void str8_to_upper(Str8 text);
@@ -345,6 +346,7 @@ struct OS_ProcessInfo {
 
 function OS_SystemInfo* os_get_system_info(void);
 function OS_ProcessInfo* os_get_process_info(void);
+function u64 os_get_micro_second_resolution(void);
 
 ////////////////////////////////
 // OS: Memory Helpers
@@ -359,7 +361,45 @@ function void os_release(void* ptr, u64 size);
 ////////////////////////////////
 // OS: FileSystem Helpers
 
-function Str8 os_file_read(Arena* arena, Str8 file_name);
-function b32 os_file_write(Str8List* first_node, Str8 file_name);
+typedef Str8 Buffer;
+typedef struct BufferList BufferList;
+struct BufferList {
+    Buffer buffer;
+    BufferList* next;
+};
+
+typedef enum OS_AccessFlag OS_AccessFlag;
+enum OS_AccessFlag {
+    os_access_flag_open_existing  = 1 << 0,
+    os_access_flag_open_always    = 1 << 1,
+    os_access_flag_share_read     = 1 << 2,
+    os_access_flag_share_write    = 1 << 3,
+    os_access_flag_execute        = 1 << 4,
+    os_access_flag_read           = 1 << 5,
+    os_access_flag_write          = 1 << 6,
+    os_access_flag_append         = 1 << 7,
+};
+
+typedef struct OS_Handle OS_Handle;
+struct OS_Handle {
+    u64 val[1];
+};
+
+function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
+function void os_file_close(OS_Handle handle);
+function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
+#define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
+function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
+function u64 os_file_get_size(OS_Handle handle);
+function void os_file_delete(Str8 path);
+function void os_file_copy(Str8 src, Str8 dest);
+function void os_file_move(Str8 src, Str8 dest);
+function b32 os_file_path_exists(Str8 path);
+function b32 os_file_directory_exists(Str8 path);
+
+////////////////////////////////
+// OS: Time
+
+function u64 os_now_microseconds(void);
 
 #endif // MSTD_H
