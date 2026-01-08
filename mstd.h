@@ -142,6 +142,8 @@
 #error thread_var not defined for this compiler
 #endif
 
+
+
 #define _stringify(S) #S
 #define stringify(S) _stringify(S)
 
@@ -360,13 +362,6 @@ function void os_release(void* ptr, u64 size);
 
 ////////////////////////////////
 // OS: FileSystem Helpers
-
-typedef Str8 Buffer;
-typedef struct BufferList BufferList;
-struct BufferList {
-    Buffer buffer;
-    BufferList* next;
-};
 
 typedef enum OS_AccessFlag OS_AccessFlag;
 enum OS_AccessFlag {

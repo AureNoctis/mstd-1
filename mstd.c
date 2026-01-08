@@ -8,7 +8,8 @@
 ////////////////////////////////
  //Types: Arena
 
-#define ARENA_DEFAULT_COMMIT_SIZE MB(1)
+#define ARENA_DEFAULT_COMMIT_SIZE MB(4)
+#define ARENA_DEFAULT_RESERVE_SIZE GB(1)
 #define ARENA_INITIAL_MEM_ALIGNMENT 64
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), ARENA_INITIAL_MEM_ALIGNMENT)
 
@@ -20,14 +21,14 @@ function Arena* arena_alloc(u64 reserve_size, ArenaFlag flag) {
         page_size = os_get_system_info()->large_page_size;
         reserve_size = align_up_pow2(reserve_size, page_size);
         memory = os_reserve_large(reserve_size);
-        os_commit_large(memory, os_get_system_info()->large_page_size);
+        os_commit_large(memory, clamp_bottom(ARENA_DEFAULT_COMMIT_SIZE, os_get_system_info()->large_page_size));
     }
     else {
         flag &= ~arena_flag_commit_large_pages;
         page_size = os_get_system_info()->page_size;
         reserve_size = align_up_pow2(reserve_size, page_size);
         memory = os_reserve(reserve_size);
-        os_commit(memory, os_get_system_info()->page_size);
+        os_commit(memory, clamp_bottom(ARENA_DEFAULT_COMMIT_SIZE, os_get_system_info()->page_size));
     }
 
     Arena* result = (Arena*)memory;
@@ -94,7 +95,7 @@ function ArenaScratch arena_scratch_begin(void) {
     if(index >= 0 && index < ARENA_SCRATCH_POOL_COUNT) {
         Arena **slot = &__arena_scratch[index];
         if (*slot == 0)
-            *slot = arena_alloc(MB(4), arena_flag_none);
+            *slot = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, arena_flag_none);
         (*slot)->cursor = 0;
         __arena_scratch_available_mask &= ~(1u << index);
         scratch.arena = *slot;

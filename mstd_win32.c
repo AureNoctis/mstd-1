@@ -2,6 +2,7 @@
 
 #include <Windows.h>
 
+#pragma comment(lib, "kernel32")
 #pragma comment(lib, "user32")
 #pragma comment(lib, "Advapi32")
 
@@ -194,7 +195,7 @@ function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data) {
 
 function u64 os_file_get_size(OS_Handle handle) {
     u64 size = 0;
-    GetFileSizeEx(handle.val[0], (LARGE_INTEGER*)&size);
+    GetFileSizeEx((HANDLE)handle.val[0], (LARGE_INTEGER*)&size);
     return size;
 }
 
@@ -243,83 +244,6 @@ function u64 os_now_microseconds(void) {
     u64 result = 0;
     LARGE_INTEGER counter;
     if(QueryPerformanceCounter(&counter))
-        result = (counter.QuadPart*Million(1))/os_get_micro_second_resolution();
+        result = (counter.QuadPart*((u64)1e6))/os_get_micro_second_resolution();
     return result;
 }
-
-// function Buffer os_file_read(Arena* arena, Str8 file_name) {
-//     ArenaScratch scratch = arena_scratch_begin();
-//     Str16 file_name_w32 = str16_from_8(scratch.arena, file_name);
-//     HANDLE file = CreateFileW((WCHAR*)file_name_w32.data, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-//     Buffer result = { 0 };
-//     if (file != INVALID_HANDLE_VALUE) {
-//         DWORD hi_size = 0;
-//         DWORD lo_size = GetFileSize(file, &hi_size);
-//         u64 size = ((u64)hi_size << 32) | (u64)lo_size;
-
-//         arena_temp(arena) {
-
-//             Buffer buffer;
-//             buffer.data = arena_push_array(arena, u8, size + 1);
-//             buffer.size = size;
-//             buffer.data[buffer.size] = 0;
-
-//             u8* ptr = buffer.data;
-//             u8* opl = buffer.data + size;
-//             b32 success = 1;
-//             for (;ptr < opl;) {
-//                 u64 total_to_read = (u64)(opl - ptr);
-//                 DWORD to_read = (DWORD)clamp_top(total_to_read, UINT32_MAX);
-//                 DWORD actual_read = 0;
-//                 if (!ReadFile(file, ptr, to_read, &actual_read, 0)) {
-//                     success = 0;
-//                     break;
-//                 }
-//                 ptr += actual_read;
-//             }
-//             if (success) {
-//                 result = buffer;
-//             }
-//         }
-//         CloseHandle(file);
-//     }
-//     arena_scratch_end(scratch);
-//     return result;
-// }
-
-// function b32 os_file_write(BufferList* first_node, Str8 file_name) {
-//     ArenaScratch scratch = arena_scratch_begin();
-//     Str16 file_name_w32 = str16_from_8(scratch.arena, file_name);
-
-//     HANDLE file = CreateFileW((WCHAR*)file_name_w32.data,
-//                               GENERIC_WRITE,
-//                               FILE_SHARE_READ,
-//                               0,
-//                               CREATE_ALWAYS,
-//                               FILE_ATTRIBUTE_NORMAL,
-//                               0);
-
-//     b32 result = (file != INVALID_HANDLE_VALUE);
-//     if (result) {
-//         for (BufferList* node = first_node; node != NULL; node = node->next) {
-//             u8* ptr = node->buffer.data;
-//             u8* opl = ptr + node->buffer.size;
-
-//             for (;ptr < opl;) {
-//                 u64 total_to_write = (u64)(opl - ptr);
-//                 DWORD to_write = (DWORD)clamp_top(total_to_write, UINT32_MAX);
-//                 DWORD actual_write = 0;
-//                 if (!WriteFile(file, ptr, to_write, &actual_write, 0)) {
-//                     result = 0;
-//                     goto dblbreak;
-//                 }
-//                 ptr += actual_write;
-//             }
-//         }
-//     dblbreak:
-//         CloseHandle(file);
-//     }
-
-//     arena_scratch_end(scratch);
-//     return result;
-// }
