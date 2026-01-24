@@ -1,7 +1,7 @@
 #include "mstd.h"
 #include <math.h>
 
-#ifdef OS_WINDOWS
+#if OS_WINDOWS
 #include "mstd_win32.c"
 #endif
 
@@ -13,15 +13,15 @@
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
 Arena* arena_alloc(u64 reserve_size, ArenaFlag flags) {
-    u64 page_size = (flags & arena_flag_commit_large_pages)
+    u64 page_size = (flags & ARENA_FLAG_COMMIT_LARGE_PAGES)
         ? os_get_system_info()->large_page_size
         : os_get_system_info()->page_size;
 
     u64 actual_reserve = align_up_pow2(reserve_size, page_size);
     u64 initial_commit = align_up_pow2(ARENA_DEFAULT_COMMIT_SIZE, page_size);
 
-    void* memory = os_reserve(actual_reserve, flags & arena_flag_commit_large_pages);
-    os_commit(memory, initial_commit, flags & arena_flag_commit_large_pages);
+    void* memory = os_reserve(actual_reserve, flags & ARENA_FLAG_COMMIT_LARGE_PAGES);
+    os_commit(memory, initial_commit, flags & ARENA_FLAG_COMMIT_LARGE_PAGES);
 
     Arena* arena = (Arena*)memory;
     arena->cursor = ARENA_HEADER_SIZE;
@@ -48,7 +48,7 @@ void* arena_push(Arena* arena, u64 size, u64 align) {
     if (end_pos > arena->committed) {
         u64 commit_target = align_up_pow2(end_pos, (u64)arena->page_size);
         u64 commit_size = clamp_top(commit_target, arena->reserved) - arena->committed;
-        os_commit((u8*)arena + arena->committed, commit_size, arena->flags & arena_flag_commit_large_pages);
+        os_commit((u8*)arena + arena->committed, commit_size, arena->flags & ARENA_FLAG_COMMIT_LARGE_PAGES);
         arena->committed = commit_target;
     }
 
@@ -88,7 +88,7 @@ ArenaScratch arena_scratch_begin(void) {
     if (index >= 0 && index < ARENA_SCRATCH_POOL_COUNT) {
         Arena** slot = &__arena_scratch[index];
         if (*slot == 0)
-            *slot = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, arena_flag_none);
+            *slot = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, ARENA_FLAG_NONE);
         (*slot)->cursor = 0;
         __arena_scratch_available_mask &= ~(1u << index);
         scratch.arena = *slot;

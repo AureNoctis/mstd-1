@@ -51,7 +51,7 @@
 #define ARCH_ARM   0
 #define ARCH_ARM64 0
 
-#if defined(_M_AMD64) || defined(__amd64__) || defined(__x86_64__)
+#if defined(_M_AMD64) || defined(_WIN64) || defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__) || defined(__amd64__)
 #undef  ARCH_X64
 #define ARCH_X64   1
 #elif defined(_M_IX86) || defined(__i386__)
@@ -81,7 +81,7 @@
 #define LANG_C 1
 #endif
 
-#ifdef _MSC_VER
+#if COMPILER_MSVC
     #include <intrin.h>
 #endif
 
@@ -140,6 +140,22 @@
 #endif
 
 #if COMPILER_MSVC
+#define force_inline __forceinline
+#elif COMPILER_CLANG || COMPILER_GCC
+#define force_inline __attribute__((always_inline))
+#else
+#error force_inline not defined for this compiler.
+#endif
+
+#if COMPILER_MSVC
+#define no_inline __declspec(noinline)
+#elif COMPILER_CLANG || COMPILER_GCC
+#define no_inline __attribute__((noinline))
+#else
+#error no_inline not defined for this compiler.
+#endif
+
+#if COMPILER_MSVC
 #define thread_var __declspec(thread)
 #elif COMPILER_CLANG || COMPILER_GCC
 #define thread_var __thread
@@ -147,13 +163,15 @@
 #error thread_var not defined for this compiler
 #endif
 
-#ifdef MSTD_DEBUG
-    #define debug_trap_code_if(code, op, check) if((code) op (check)) trap()
-    #define debug_trap_if(condition) if(condition) trap()
+#if MSTD_DEBUG
+    #define debug_trap_code_if(code, op, check) do { trap(); } while((code) op (check))
+    #define debug_trap_if(condition) do { trap(); } while(condition)
 #else
     #define debug_trap_code_if(code, op, check) ((void)(code))
     #define debug_trap_if(condition)
 #endif
+
+#define debug_validate_code(code, check) debug_trap_code_if(code, !=, check)
 
 #define _stringify(S) #S
 #define stringify(S) _stringify(S)
@@ -227,12 +245,20 @@ typedef uintptr_t uptr;
         T elements[4]; \
     } T##vec4
 
-VEC2_GEN(f32);
-VEC3_GEN(f32);
-VEC4_GEN(f32);
-VEC2_GEN(f64);
-VEC3_GEN(f64);
-VEC4_GEN(f64);
+#define VEC_GEN(T) VEC2_GEN(T); VEC3_GEN(T); VEC4_GEN(T);
+
+VEC_GEN(u8);
+VEC_GEN(u16);
+VEC_GEN(u32);
+VEC_GEN(u64);
+
+VEC_GEN(i8);
+VEC_GEN(i16);
+VEC_GEN(i32);
+VEC_GEN(i64);
+
+VEC_GEN(f32);
+VEC_GEN(f64);
 
 #if COMPILER_MSVC
 static i32 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? where : -1; }
@@ -254,8 +280,8 @@ static i32 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&wh
 
 typedef enum ArenaFlag ArenaFlag;
 enum ArenaFlag {
-    arena_flag_none = 0,
-    arena_flag_commit_large_pages = 1 << 0,
+    ARENA_FLAG_NONE = 0,
+    ARENA_FLAG_COMMIT_LARGE_PAGES = 1 << 0,
 };
 
 typedef struct Arena Arena;
@@ -281,19 +307,19 @@ struct ArenaScratch {
 
  Arena* arena_alloc(u64 reserve_size, ArenaFlag flags);
 
- void* arena_push(Arena* arena, u64 size, u64 align);
+void* arena_push(Arena* arena, u64 size, u64 align);
 #define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), align_of(T))
 #define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * count, align_of(T))
 
- void arena_reset(Arena* arena);
- void arena_release(Arena *arena);
+void arena_reset(Arena* arena);
+void arena_release(Arena *arena);
 
- ArenaTemp arena_temp_begin(Arena* arena);
- void arena_temp_end(ArenaTemp temp);
+ArenaTemp arena_temp_begin(Arena* arena);
+void arena_temp_end(ArenaTemp temp);
 #define arena_temp_scope(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
 
- ArenaScratch arena_scratch_begin(void);
- void arena_scratch_end(ArenaScratch scratch);
+ArenaScratch arena_scratch_begin(void);
+void arena_scratch_end(ArenaScratch scratch);
 
 ////////////////////////////////
 // Types: Str8, Str16, Str32
@@ -330,81 +356,79 @@ struct UnicodeDecode {
 
 typedef enum CharType CharType;
 enum CharType {
-    char_type_space   = (1 << 0), // 0x01
-    char_type_upper   = (1 << 1), // 0x02
-    char_type_lower   = (1 << 2), // 0x04
-    char_type_digit10 = (1 << 3), // 0x08
-    char_type_digit16 = (1 << 4), // 0x10
+    CHAR_TYPE_SPACE   = (1 << 0), // 0x01
+    CHAR_TYPE_UPPER   = (1 << 1), // 0x02
+    CHAR_TYPE_LOWER   = (1 << 2), // 0x04
+    CHAR_TYPE_DIGIT10 = (1 << 3), // 0x08
+    CHAR_TYPE_DIGIT16 = (1 << 4), // 0x10
 };
 
 align_to(64) global const u8 ASCII_LUT[256] = {
     // White-space: Tab, LF, VT, FF, CR, Space
-    [0x09] = char_type_space, [0x0A] = char_type_space, [0x0B] = char_type_space,
-    [0x0C] = char_type_space, [0x0D] = char_type_space, [0x20] = char_type_space,
+    [0x09] = CHAR_TYPE_SPACE, [0x0A] = CHAR_TYPE_SPACE, [0x0B] = CHAR_TYPE_SPACE,
+    [0x0C] = CHAR_TYPE_SPACE, [0x0D] = CHAR_TYPE_SPACE, [0x20] = CHAR_TYPE_SPACE,
 
     // Digits: 0-9 (Decimal + Hex)
-    ['0'] = char_type_digit10 | char_type_digit16, ['1'] = char_type_digit10 | char_type_digit16,
-    ['2'] = char_type_digit10 | char_type_digit16, ['3'] = char_type_digit10 | char_type_digit16,
-    ['4'] = char_type_digit10 | char_type_digit16, ['5'] = char_type_digit10 | char_type_digit16,
-    ['6'] = char_type_digit10 | char_type_digit16, ['7'] = char_type_digit10 | char_type_digit16,
-    ['8'] = char_type_digit10 | char_type_digit16, ['9'] = char_type_digit10 | char_type_digit16,
+    ['0'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['1'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['2'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['3'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['4'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['5'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['6'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['7'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['8'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['9'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
 
     // Uppercase Hex: A-F
-    ['A'] = char_type_upper | char_type_digit16, ['B'] = char_type_upper | char_type_digit16,
-    ['C'] = char_type_upper | char_type_digit16, ['D'] = char_type_upper | char_type_digit16,
-    ['E'] = char_type_upper | char_type_digit16, ['F'] = char_type_upper | char_type_digit16,
+    ['A'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['B'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+    ['C'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['D'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+    ['E'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['F'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
 
     // Uppercase Non-Hex: G-Z
-    ['G'] = char_type_upper, ['H'] = char_type_upper, ['I'] = char_type_upper, ['J'] = char_type_upper,
-    ['K'] = char_type_upper, ['L'] = char_type_upper, ['M'] = char_type_upper, ['N'] = char_type_upper,
-    ['O'] = char_type_upper, ['P'] = char_type_upper, ['Q'] = char_type_upper, ['R'] = char_type_upper,
-    ['S'] = char_type_upper, ['T'] = char_type_upper, ['U'] = char_type_upper, ['V'] = char_type_upper,
-    ['W'] = char_type_upper, ['X'] = char_type_upper, ['Y'] = char_type_upper, ['Z'] = char_type_upper,
+    ['G'] = CHAR_TYPE_UPPER, ['H'] = CHAR_TYPE_UPPER, ['I'] = CHAR_TYPE_UPPER, ['J'] = CHAR_TYPE_UPPER,
+    ['K'] = CHAR_TYPE_UPPER, ['L'] = CHAR_TYPE_UPPER, ['M'] = CHAR_TYPE_UPPER, ['N'] = CHAR_TYPE_UPPER,
+    ['O'] = CHAR_TYPE_UPPER, ['P'] = CHAR_TYPE_UPPER, ['Q'] = CHAR_TYPE_UPPER, ['R'] = CHAR_TYPE_UPPER,
+    ['S'] = CHAR_TYPE_UPPER, ['T'] = CHAR_TYPE_UPPER, ['U'] = CHAR_TYPE_UPPER, ['V'] = CHAR_TYPE_UPPER,
+    ['W'] = CHAR_TYPE_UPPER, ['X'] = CHAR_TYPE_UPPER, ['Y'] = CHAR_TYPE_UPPER, ['Z'] = CHAR_TYPE_UPPER,
 
     // Lowercase Hex: a-f
-    ['a'] = char_type_lower | char_type_digit16, ['b'] = char_type_lower | char_type_digit16,
-    ['c'] = char_type_lower | char_type_digit16, ['d'] = char_type_lower | char_type_digit16,
-    ['e'] = char_type_lower | char_type_digit16, ['f'] = char_type_lower | char_type_digit16,
+    ['a'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['b'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+    ['c'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['d'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+    ['e'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['f'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
 
     // Lowercase Non-Hex: g-z
-    ['g'] = char_type_lower, ['h'] = char_type_lower, ['i'] = char_type_lower, ['j'] = char_type_lower,
-    ['k'] = char_type_lower, ['l'] = char_type_lower, ['m'] = char_type_lower, ['n'] = char_type_lower,
-    ['o'] = char_type_lower, ['p'] = char_type_lower, ['q'] = char_type_lower, ['r'] = char_type_lower,
-    ['s'] = char_type_lower, ['t'] = char_type_lower, ['u'] = char_type_lower, ['v'] = char_type_lower,
-    ['w'] = char_type_lower, ['x'] = char_type_lower, ['y'] = char_type_lower, ['z'] = char_type_lower,
+    ['g'] = CHAR_TYPE_LOWER, ['h'] = CHAR_TYPE_LOWER, ['i'] = CHAR_TYPE_LOWER, ['j'] = CHAR_TYPE_LOWER,
+    ['k'] = CHAR_TYPE_LOWER, ['l'] = CHAR_TYPE_LOWER, ['m'] = CHAR_TYPE_LOWER, ['n'] = CHAR_TYPE_LOWER,
+    ['o'] = CHAR_TYPE_LOWER, ['p'] = CHAR_TYPE_LOWER, ['q'] = CHAR_TYPE_LOWER, ['r'] = CHAR_TYPE_LOWER,
+    ['s'] = CHAR_TYPE_LOWER, ['t'] = CHAR_TYPE_LOWER, ['u'] = CHAR_TYPE_LOWER, ['v'] = CHAR_TYPE_LOWER,
+    ['w'] = CHAR_TYPE_LOWER, ['x'] = CHAR_TYPE_LOWER, ['y'] = CHAR_TYPE_LOWER, ['z'] = CHAR_TYPE_LOWER,
 };
 
-#define str8_char_is_space(c)        (ASCII_LUT[(u8)(c)] & char_type_space)
-#define str8_char_is_upper(c)        (ASCII_LUT[(u8)(c)] & char_type_upper)
-#define str8_char_is_lower(c)        (ASCII_LUT[(u8)(c)] & char_type_lower)
-#define str8_char_is_alpha(c)        (ASCII_LUT[(u8)(c)] & ( char_type_upper | char_type_lower ))
-#define str8_char_is_alphanumeric(c) (ASCII_LUT[(u8)(c)] & ( char_type_upper | char_type_lower | char_type_digit10 ))
-#define str8_char_is_numeric(c)      (ASCII_LUT[(u8)(c)] & char_type_digit10)
-#define str8_char_is_numeric_hex(c)  (ASCII_LUT[(u8)(c)] & char_type_digit16)
+#define str8_char_is_space(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_SPACE)
+#define str8_char_is_upper(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_UPPER)
+#define str8_char_is_lower(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_LOWER)
+#define str8_char_is_alpha(c)        (ASCII_LUT[(u8)(c)] & ( CHAR_TYPE_UPPER | CHAR_TYPE_LOWER ))
+#define str8_char_is_alphanumeric(c) (ASCII_LUT[(u8)(c)] & ( CHAR_TYPE_UPPER | CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT10 ))
+#define str8_char_is_numeric(c)      (ASCII_LUT[(u8)(c)] & CHAR_TYPE_DIGIT10)
+#define str8_char_is_numeric_hex(c)  (ASCII_LUT[(u8)(c)] & CHAR_TYPE_DIGIT16)
 
 #define str8_char_to_upper(c)        ((u8)((u8)(c) ^ (str8_char_is_lower(c) ? 0x20 : 0)))
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
- Str8 str8_from_cstr(u8* str);
+Str8 str8_from_cstr(u8* str);
 #define str8_literal(literal) str8_from_cstr((u8*)literal)
 
- Str8 str8_of_size(Arena* arena, u64 size);
- Str16 str16_of_size(Arena* arena, u64 size);
+Str8 str8_of_size(Arena* arena, u64 size);
+Str16 str16_of_size(Arena* arena, u64 size);
 
- void str8_to_lower(Str8 text);
- void str8_to_upper(Str8 text);
- b8 str8_equal(Str8 a, Str8 b);
- Str16 str16_from_cstr(u16* str);
+void str8_to_lower(Str8 text);
+void str8_to_upper(Str8 text);
+b8 str8_equal(Str8 a, Str8 b);
+Str16 str16_from_cstr(u16* str);
 #define str16_literal(literal) str16_from_cstr((u16*)literal)
- b8 str16_equal(Str16 a, Str16 b);
-
- Str8 str8_from_16(Arena* arena, Str16 text);
- Str16 str16_from_8(Arena* arena, Str8 text);
- Str8 str8_from_32(Arena* arena, Str32 text);
- Str32 str32_from_8(Arena* arena, Str8 text);
-
- Str8 str8_copy(Arena* arena, Str8 text);
- Str16 str16_copy(Arena* arena, Str16 text);
+b8 str16_equal(Str16 a, Str16 b);
+Str8 str8_from_16(Arena* arena, Str16 text);
+Str16 str16_from_8(Arena* arena, Str8 text);
+Str8 str8_from_32(Arena* arena, Str32 text);
+Str32 str32_from_8(Arena* arena, Str8 text);
+Str8 str8_copy(Arena* arena, Str8 text);
+Str16 str16_copy(Arena* arena, Str16 text);
 
 ////////////////////////////////
 // OS: Core
@@ -423,31 +447,34 @@ struct OS_ProcessInfo {
     b32 large_pages_allowed;
 };
 
- OS_SystemInfo* os_get_system_info(void);
- OS_ProcessInfo* os_get_process_info(void);
- u64 os_get_micro_second_resolution(void);
+OS_SystemInfo* os_get_system_info(void);
+OS_ProcessInfo* os_get_process_info(void);
+u64 os_get_micro_second_resolution(void);
+
+void* os_load_lib(char* name);
+void* os_load_symbol(void* lib, char* name);
 
 ////////////////////////////////
 // OS: Memory Helpers
 
- void* os_reserve(u64 size, b32 large_pages);
- b8 os_commit(void* ptr, u64 size, b32 large_pages);
- void os_decommit(void* ptr, u64 size);
- void os_release(void* ptr, u64 size);
+void* os_reserve(u64 size, b32 large_pages);
+b8 os_commit(void* ptr, u64 size, b32 large_pages);
+void os_decommit(void* ptr, u64 size);
+void os_release(void* ptr, u64 size);
 
 ////////////////////////////////
 // OS: FileSystem Helpers
 
 typedef enum OS_AccessFlag OS_AccessFlag;
 enum OS_AccessFlag {
-    os_access_flag_open_existing  = 1 << 0,
-    os_access_flag_open_always    = 1 << 1,
-    os_access_flag_share_read     = 1 << 2,
-    os_access_flag_share_write    = 1 << 3,
-    os_access_flag_execute        = 1 << 4,
-    os_access_flag_read           = 1 << 5,
-    os_access_flag_write          = 1 << 6,
-    os_access_flag_append         = 1 << 7,
+    OS_ACCESS_FLAG_OPEN_EXISTING  = 1 << 0,
+    OS_ACCESS_FLAG_OPEN_ALWAYS    = 1 << 1,
+    OS_ACCESS_FLAG_SHARE_READ     = 1 << 2,
+    OS_ACCESS_FLAG_SHARE_WRITE    = 1 << 3,
+    OS_ACCESS_FLAG_EXECUTE        = 1 << 4,
+    OS_ACCESS_FLAG_READ           = 1 << 5,
+    OS_ACCESS_FLAG_WRITE          = 1 << 6,
+    OS_ACCESS_FLAG_APPEND         = 1 << 7,
 };
 
 typedef struct OS_Handle OS_Handle;
@@ -455,21 +482,22 @@ struct OS_Handle {
     u64 val[1];
 };
 
- OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
- void os_file_close(OS_Handle handle);
- u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
+OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
+void os_file_close(OS_Handle handle);
+u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
 #define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
- u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
- u64 os_file_get_size(OS_Handle handle);
- void os_file_delete(Str8 path);
- void os_file_copy(Str8 src, Str8 dest);
- void os_file_move(Str8 src, Str8 dest);
- b32 os_file_path_exists(Str8 path);
- b32 os_file_directory_exists(Str8 path);
+u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
+u64 os_file_get_size(OS_Handle handle);
+void os_file_delete(Str8 path);
+void os_file_copy(Str8 src, Str8 dest);
+void os_file_move(Str8 src, Str8 dest);
+b32 os_file_path_exists(Str8 path);
+b32 os_file_directory_exists(Str8 path);
+
 
 ////////////////////////////////
 // OS: Time
 
- u64 os_now_microseconds(void);
+ u64 os_get_time_now_microseconds(void);
 
 #endif // MSTD_H
