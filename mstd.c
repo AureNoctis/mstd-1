@@ -163,7 +163,7 @@ const global u8 utf8_class[32] = {
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
 };
 
-internal  UnicodeDecode utf8_decode(u8* str, u64 max) {
+UnicodeDecode utf8_decode(u8* str, u64 max) {
     UnicodeDecode result = { 1, UINT32_MAX };
     u8 byte = str[0];
     u8 byte_class = utf8_class[byte >> 3];
@@ -208,7 +208,7 @@ internal  UnicodeDecode utf8_decode(u8* str, u64 max) {
     return result;
 }
 
-internal  UnicodeDecode utf16_decode(u16* str, u64 max) {
+UnicodeDecode utf16_decode(u16* str, u64 max) {
     UnicodeDecode result = { 1, UINT32_MAX };
     result.codepoint = str[0];
     result.inc = 1;
@@ -219,7 +219,7 @@ internal  UnicodeDecode utf16_decode(u16* str, u64 max) {
     return result;
 }
 
-internal  u32 utf8_encode(u8* str, u32 codepoint) {
+u32 utf8_encode(u8* str, u32 codepoint) {
     u32 inc = 0;
     if (codepoint <= 0x7F) {
         str[0] = (u8)codepoint;
@@ -250,7 +250,7 @@ internal  u32 utf8_encode(u8* str, u32 codepoint) {
     return inc;
 }
 
-internal  u32 utf16_encode(u16* str, u32 codepoint) {
+u32 utf16_encode(u16* str, u32 codepoint) {
     u32 inc = 1;
     if (codepoint == UINT32_MAX)
         str[0] = (u16)'?';
@@ -265,14 +265,14 @@ internal  u32 utf16_encode(u16* str, u32 codepoint) {
     return inc;
 }
 
-internal  u32 utf8_size(u32 cp) {
+u32 utf8_size(u32 cp) {
     if (cp <= 0x7F)       return 1;
     if (cp <= 0x7FF)      return 2;
     if (cp <= 0xFFFF)     return 3;
     return 4;
 }
 
-internal  u32 utf16_size(u32 cp) {
+u32 utf16_size(u32 cp) {
     if (cp > 0x10FFFF) return 0;
     if (cp >= 0xD800 && cp <= 0xDFFF) return 0;
     if (cp <= 0xFFFF) return 1;

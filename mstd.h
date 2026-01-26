@@ -164,14 +164,15 @@
 #endif
 
 #if MSTD_DEBUG
-    #define debug_trap_code_if(code, op, check) do { trap(); } while((code) op (check))
-    #define debug_trap_if(condition) do { trap(); } while(condition)
+    #define debug_trap_code_if(code, op, check) while((code) op (check)) { trap(); }
+    #define debug_trap_if(condition) while(condition) { trap(); }
 #else
     #define debug_trap_code_if(code, op, check) ((void)(code))
     #define debug_trap_if(condition)
 #endif
 
 #define debug_validate_code(code, check) debug_trap_code_if(code, !=, check)
+#define debug_validate(condition) debug_trap_if(!(condition))
 
 #define _stringify(S) #S
 #define stringify(S) _stringify(S)
@@ -417,6 +418,13 @@ Str8 str8_from_cstr(u8* str);
 Str8 str8_of_size(Arena* arena, u64 size);
 Str16 str16_of_size(Arena* arena, u64 size);
 
+UnicodeDecode utf8_decode(u8* str, u64 max);
+UnicodeDecode utf16_decode(u16* str, u64 max);
+u32 utf8_encode(u8* str, u32 codepoint);
+u32 utf16_encode(u16* str, u32 codepoint);
+u32 utf8_size(u32 cp);
+u32 utf16_size(u32 cp);
+
 void str8_to_lower(Str8 text);
 void str8_to_upper(Str8 text);
 b8 str8_equal(Str8 a, Str8 b);
@@ -447,12 +455,20 @@ struct OS_ProcessInfo {
     b32 large_pages_allowed;
 };
 
+typedef struct OS_Handle OS_Handle;
+struct OS_Handle {
+    u64 val[1];
+};
+
+void os_init_state();
 OS_SystemInfo* os_get_system_info(void);
 OS_ProcessInfo* os_get_process_info(void);
 u64 os_get_micro_second_resolution(void);
 
-void* os_load_lib(char* name);
-void* os_load_symbol(void* lib, char* name);
+OS_Handle os_load_lib(char* name);
+void* os_load_symbol(OS_Handle lib, char* name);
+
+void os_attach_console_if_exists();
 
 ////////////////////////////////
 // OS: Memory Helpers
@@ -477,11 +493,6 @@ enum OS_AccessFlag {
     OS_ACCESS_FLAG_APPEND         = 1 << 7,
 };
 
-typedef struct OS_Handle OS_Handle;
-struct OS_Handle {
-    u64 val[1];
-};
-
 OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
 void os_file_close(OS_Handle handle);
 u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
@@ -499,5 +510,10 @@ b32 os_file_directory_exists(Str8 path);
 // OS: Time
 
  u64 os_get_time_now_microseconds(void);
+
+////////////////////////////////
+// Entrypoint: i32 mstd_main() {}
+// #define MSTD_USE_MAIN
+// #define MSTD_USE_GUI_MAIN
 
 #endif // MSTD_H

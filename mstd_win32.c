@@ -1,6 +1,9 @@
 #include "mstd.h"
 
 #include <Windows.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <io.h>
 
 #pragma comment(lib, "user32")
 #pragma comment(lib, "advapi32")
@@ -14,9 +17,8 @@ struct OS_Win32_State {
 };
 
 global OS_Win32_State os_win32_state;
-global b32 os_win32_state_is_initialized;
 
-void win32_state_init() {
+ void os_init_state() {
 
     b32 large_pages_allowed = 0;
 
@@ -39,7 +41,7 @@ void win32_state_init() {
 
     os_win32_state.micro_second_resolution = 1;
     LARGE_INTEGER resolution;
-    if (QueryPerformanceCounter(&resolution))
+    if (QueryPerformanceFrequency(&resolution))
         os_win32_state.micro_second_resolution = resolution.QuadPart;
 
     os_win32_state.process_info.large_pages_allowed = large_pages_allowed;
@@ -51,36 +53,40 @@ void win32_state_init() {
     os_win32_state.system_info.large_page_size = GetLargePageMinimum();
     os_win32_state.system_info.logical_processor_count = sysinfo.dwNumberOfProcessors;
     os_win32_state.system_info.allocation_granularity = sysinfo.dwAllocationGranularity;
-
-    os_win32_state_is_initialized = 1;
 }
 
 OS_SystemInfo* os_get_system_info() {
-    if (!os_win32_state_is_initialized)
-        win32_state_init();
-
     return &os_win32_state.system_info;
 }
 
 OS_ProcessInfo* os_get_process_info() {
-    if (!os_win32_state_is_initialized)
-        win32_state_init();
-
     return &os_win32_state.process_info;
 }
 
 u64 os_get_micro_second_resolution(void) {
-    if (!os_win32_state_is_initialized)
-        win32_state_init();
     return os_win32_state.micro_second_resolution;
 }
 
-void* os_load_lib(char* name) {
-    return LoadLibraryA(name);
+OS_Handle os_load_lib(char* name) {
+    OS_Handle handle;
+    handle.val[0] = LoadLibraryA(name);
+    return handle;
 }
 
-void* os_load_symbol(void* lib, char* name) {
-    return GetProcAddress((HMODULE)lib, name);
+void* os_load_symbol(OS_Handle lib, char* name) {
+    return GetProcAddress((HMODULE)lib.val[0], name);
+}
+
+void os_attach_console_if_exists() {
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        FILE* dummy;
+        freopen_s(&dummy, "CONOUT$", "w", stdout);
+        freopen_s(&dummy, "CONOUT$", "w", stderr);
+        freopen_s(&dummy, "CONIN$", "r", stdin);
+
+        setvbuf(stdout, NULL, _IONBF, 0);
+        setvbuf(stderr, NULL, _IONBF, 0);
+    }
 }
 
 void* os_reserve(u64 size, b32 large_pages) {
@@ -246,3 +252,33 @@ u64 os_get_time_now_microseconds(void) {
         result = (counter.QuadPart * ((u64)1e6)) / os_get_micro_second_resolution();
     return result;
 }
+
+////////////////////////////////
+// Entrypoint: use if needed
+
+#if MSTD_USE_MAIN
+
+int wmain() {
+    os_init_state();
+    return mstd_main();
+}
+
+#elif MSTD_USE_GUI_MAIN
+
+int WINAPI wWinMain(
+    _In_        HINSTANCE hInstance,
+    _In_opt_    HINSTANCE hPrevInstance,
+    _In_        LPWSTR lpCmdLine,
+    _In_        int nShowCmd
+) {
+    (void)(hInstance);
+    (void)(hPrevInstance);
+    (void)(lpCmdLine);
+    (void)(nShowCmd);
+
+    os_init_state();
+    os_attach_console_if_exists();
+
+    return mstd_main();
+}
+#endif
