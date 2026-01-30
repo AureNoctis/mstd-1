@@ -33,12 +33,15 @@
 #if defined(_WIN32)
 #undef  OS_WINDOWS
 #define OS_WINDOWS 1
+
 #elif defined(__linux__)
 #undef  OS_LINUX
 #define OS_LINUX   1
+
 #elif defined(__APPLE__) && defined(__MACH__)
 #undef  OS_MAC
 #define OS_MAC     1
+
 #else
 #error "Unknown Operating System"
 #endif
@@ -51,18 +54,22 @@
 #define ARCH_ARM   0
 #define ARCH_ARM64 0
 
-#if defined(_M_AMD64) || defined(_WIN64) || defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__) || defined(__amd64__)
+#if defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__)
 #undef  ARCH_X64
 #define ARCH_X64   1
-#elif defined(_M_IX86) || defined(__i386__)
-#undef  ARCH_X86
-#define ARCH_X86   1
+
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #undef  ARCH_ARM64
 #define ARCH_ARM64 1
+
+#elif defined(_M_IX86) || defined(__i386__)
+#undef  ARCH_X86
+#define ARCH_X86   1
+
 #elif defined(__arm__) || defined(_M_ARM)
 #undef  ARCH_ARM
 #define ARCH_ARM   1
+
 #else
 #error "Unknown Architecture"
 #endif
@@ -319,7 +326,7 @@ ArenaTemp arena_temp_begin(Arena* arena);
 void arena_temp_end(ArenaTemp temp);
 #define arena_temp_scope(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
 
-ArenaScratch arena_scratch_begin(void);
+ArenaScratch arena_scratch_begin();
 void arena_scratch_end(ArenaScratch scratch);
 
 ////////////////////////////////
@@ -453,6 +460,7 @@ typedef struct OS_ProcessInfo OS_ProcessInfo;
 struct OS_ProcessInfo {
     u32 id;
     b32 large_pages_allowed;
+    Str8 current_working_directory;
 };
 
 typedef struct OS_Handle OS_Handle;
@@ -461,9 +469,12 @@ struct OS_Handle {
 };
 
 void os_init_state();
-OS_SystemInfo* os_get_system_info(void);
-OS_ProcessInfo* os_get_process_info(void);
-u64 os_get_micro_second_resolution(void);
+OS_SystemInfo* os_get_system_info();
+OS_ProcessInfo* os_get_process_info();
+u64 os_get_resolution_us();
+f64 os_get_inverse_ticks_per_us();
+u64 os_get_ticks();
+#define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
 
 OS_Handle os_load_lib(char* name);
 void* os_load_symbol(OS_Handle lib, char* name);
@@ -487,11 +498,22 @@ enum OS_AccessFlag {
     OS_ACCESS_FLAG_OPEN_ALWAYS    = 1 << 1,
     OS_ACCESS_FLAG_SHARE_READ     = 1 << 2,
     OS_ACCESS_FLAG_SHARE_WRITE    = 1 << 3,
-    OS_ACCESS_FLAG_EXECUTE        = 1 << 4,
-    OS_ACCESS_FLAG_READ           = 1 << 5,
-    OS_ACCESS_FLAG_WRITE          = 1 << 6,
-    OS_ACCESS_FLAG_APPEND         = 1 << 7,
+    OS_ACCESS_FLAG_EXECUTE        = 1 << 5,
+    OS_ACCESS_FLAG_READ           = 1 << 6,
+    OS_ACCESS_FLAG_WRITE          = 1 << 7,
+    OS_ACCESS_FLAG_APPEND         = 1 << 8
 };
+
+typedef enum OS_FileEventType OS_FileEventType;
+enum OS_FileEventType {
+    OS_FILE_EVENT_TYPE_NULL,
+    OS_FILE_EVENT_TYPE_MODIFIED,
+    OS_FILE_EVENT_TYPE_ADDED,
+    OS_FILE_EVENT_TYPE_DELETED,
+    OS_FILE_EVENT_TYPE_RENAMED,
+};
+
+typedef void OS_FileWatcher;
 
 OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
 void os_file_close(OS_Handle handle);
@@ -505,15 +527,29 @@ void os_file_move(Str8 src, Str8 dest);
 b32 os_file_path_exists(Str8 path);
 b32 os_file_directory_exists(Str8 path);
 
+OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, b32 watch_sub_directory);
+b32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file);
+void os_file_watcher_destroy(OS_FileWatcher* watcher);
 
 ////////////////////////////////
-// OS: Time
+// OS: Timer
 
- u64 os_get_time_now_microseconds(void);
+typedef struct Timer Timer;
+struct Timer {
+    u64 ticks;
+    float delta;
+    float smooth_delta;
+    float very_smooth_delta;
+};
+
+Timer timer_init();
+void timer_update(Timer* timer);
 
 ////////////////////////////////
 // Entrypoint: i32 mstd_main() {}
 // #define MSTD_USE_MAIN
 // #define MSTD_USE_GUI_MAIN
+
+i32 mstd_main();
 
 #endif // MSTD_H

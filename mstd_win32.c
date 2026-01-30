@@ -1,6 +1,7 @@
 #include "mstd.h"
 
 #include <Windows.h>
+#include <direct.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <io.h>
@@ -13,7 +14,8 @@ struct OS_Win32_State {
     Arena* arena;
     OS_SystemInfo system_info;
     OS_ProcessInfo process_info;
-    u64 micro_second_resolution;
+    u64 resolution_us;
+    f64 inverse_ticks_per_us;
 };
 
 global OS_Win32_State os_win32_state;
@@ -39,10 +41,12 @@ global OS_Win32_State os_win32_state;
         }
     }
 
-    os_win32_state.micro_second_resolution = 1;
+    os_win32_state.resolution_us = 1;
     LARGE_INTEGER resolution;
     if (QueryPerformanceFrequency(&resolution))
-        os_win32_state.micro_second_resolution = resolution.QuadPart;
+        os_win32_state.resolution_us = resolution.QuadPart;
+
+    os_win32_state.inverse_ticks_per_us = 1000000.0 / (f64)resolution.QuadPart;
 
     os_win32_state.process_info.large_pages_allowed = large_pages_allowed;
     os_win32_state.process_info.id = GetCurrentProcessId();
@@ -53,6 +57,12 @@ global OS_Win32_State os_win32_state;
     os_win32_state.system_info.large_page_size = GetLargePageMinimum();
     os_win32_state.system_info.logical_processor_count = sysinfo.dwNumberOfProcessors;
     os_win32_state.system_info.allocation_granularity = sysinfo.dwAllocationGranularity;
+
+    os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, 0);
+    u8 cwd[1024];
+    debug_validate(_getcwd((char*)cwd, sizeof(cwd)));
+    os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8_literal(cwd));
+
 }
 
 OS_SystemInfo* os_get_system_info() {
@@ -63,8 +73,12 @@ OS_ProcessInfo* os_get_process_info() {
     return &os_win32_state.process_info;
 }
 
-u64 os_get_micro_second_resolution(void) {
-    return os_win32_state.micro_second_resolution;
+u64 os_get_resolution_us() {
+    return os_win32_state.resolution_us;
+}
+
+f64 os_get_inverse_ticks_per_us() {
+    return os_win32_state.inverse_ticks_per_us;
 }
 
 OS_Handle os_load_lib(char* name) {
@@ -105,6 +119,7 @@ void os_decommit(void* ptr, u64 size) {
 }
 
 void os_release(void* ptr, u64 size) {
+    (void)size;
     VirtualFree(ptr, 0, MEM_RELEASE);
 }
 
@@ -116,14 +131,14 @@ OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
     DWORD share_mode = 0;
     DWORD creation_disposition = OPEN_EXISTING;
 
-    if (flags & OS_ACCESS_FLAG_READ) { access_flags |= GENERIC_READ; }
-    if (flags & OS_ACCESS_FLAG_WRITE) { access_flags |= GENERIC_WRITE; creation_disposition = CREATE_ALWAYS; }
-    if (flags & OS_ACCESS_FLAG_EXECUTE) { access_flags |= GENERIC_EXECUTE; }
-    if (flags & OS_ACCESS_FLAG_SHARE_READ) { share_mode |= FILE_SHARE_READ; }
+    if (flags & OS_ACCESS_FLAG_READ)        { access_flags |= GENERIC_READ; }
+    if (flags & OS_ACCESS_FLAG_WRITE)       { access_flags |= GENERIC_WRITE; creation_disposition = CREATE_ALWAYS; }
+    if (flags & OS_ACCESS_FLAG_EXECUTE)     { access_flags |= GENERIC_EXECUTE; }
+    if (flags & OS_ACCESS_FLAG_SHARE_READ)  { share_mode |= FILE_SHARE_READ; }
     if (flags & OS_ACCESS_FLAG_SHARE_WRITE) { share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE; }
     if (flags & OS_ACCESS_FLAG_SHARE_WRITE) { creation_disposition |= OPEN_ALWAYS; access_flags |= FILE_APPEND_DATA; }
 
-    HANDLE file = CreateFileW((WCHAR*)path_w32.data, access_flags, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
+    HANDLE file = CreateFile((WCHAR*)path_w32.data, access_flags, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
     if (file != INVALID_HANDLE_VALUE)
         result.val[0] = (u64)file;
     arena_scratch_end(scratch);
@@ -245,12 +260,107 @@ b32 os_file_directory_exists(Str8 path) {
     return exists;
 }
 
-u64 os_get_time_now_microseconds(void) {
-    u64 result = 0;
+typedef struct OS_Win32_FileWatcher OS_Win32_FileWatcher;
+struct OS_Win32_FileWatcher {
+    Arena* arena;
+    HANDLE dir_handle;
+    HANDLE iocp;
+    u8 notification_buffer[KB(4)];
+    b32 scan_sub_tree;
+    OVERLAPPED overlapped;
+};
+
+OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, b32 watch_sub_directory) {
+    Str16 u16_path = str16_from_8(arena, path);
+
+    HANDLE dir = CreateFileW(u16_path.data, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                             NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+
+    if (dir == INVALID_HANDLE_VALUE)
+        return NULL;
+
+    OS_Win32_FileWatcher* watcher = arena_push_struct(arena, OS_Win32_FileWatcher);
+    mem_zero_struct(watcher);
+    watcher->arena = arena;
+    watcher->scan_sub_tree = watch_sub_directory;
+    watcher->dir_handle = dir;
+
+    watcher->iocp = CreateIoCompletionPort(watcher->dir_handle, NULL, 0, 1);
+
+    mem_zero_struct(&watcher->overlapped);
+    BOOL success = ReadDirectoryChangesW(watcher->dir_handle,
+                                         watcher->notification_buffer,
+                                         sizeof(watcher->notification_buffer),
+                                         watcher->scan_sub_tree,
+                                         FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME,
+                                         NULL, &watcher->overlapped, NULL);
+    debug_validate(success);
+    return(watcher);
+}
+
+b32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file) {
+    OS_Win32_FileWatcher* win32_watcher = (OS_Win32_FileWatcher*)watcher;
+    DWORD bytes = 0;
+    ULONG_PTR key = 0;
+    LPOVERLAPPED p_overlapped = NULL;
+
+    if (GetQueuedCompletionStatus(win32_watcher->iocp, &bytes, &key, &p_overlapped, (DWORD)timeout_ms)) {
+
+        if (p_overlapped == &win32_watcher->overlapped && bytes > 0) {
+            FILE_NOTIFY_INFORMATION* notify = (FILE_NOTIFY_INFORMATION*)win32_watcher->notification_buffer;
+
+            for (;;) {
+                u32 name_len_chars = notify->FileNameLength / sizeof(WCHAR);
+                Str16 u16_file = {0};
+                u16_file.data = notify->FileName;
+                u16_file.size = name_len_chars;
+
+                if (name_len_chars > 0) {
+                     WCHAR last_char = u16_file.data[name_len_chars - 1];
+                     if (last_char == L'c' || last_char == L'h') {
+                        Str8 u8_file = str8_from_16(win32_watcher->arena, u16_file);
+
+                        if (file)
+                             file->data = u8_file.data;
+                             file->size = u8_file.size;
+
+                        if (type)
+                            *type = OS_FILE_EVENT_TYPE_MODIFIED;
+
+                        goto reissue_watch;
+                     }
+                }
+
+                if (notify->NextEntryOffset == 0) break;
+                notify = (FILE_NOTIFY_INFORMATION*)((u8*)notify + notify->NextEntryOffset);
+            }
+        }
+
+reissue_watch:
+        mem_zero_struct(&win32_watcher->overlapped);
+        ReadDirectoryChangesW(win32_watcher->dir_handle, win32_watcher->notification_buffer, sizeof(win32_watcher->notification_buffer),
+                              win32_watcher->scan_sub_tree, FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME, NULL,
+                              &win32_watcher->overlapped, NULL);
+
+        if (file->data != 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+void os_file_watcher_destroy(OS_FileWatcher* watcher) {
+    OS_Win32_FileWatcher* win32_watcher = (OS_Win32_FileWatcher*)watcher;
+    debug_validate(win32_watcher);
+    CloseHandle(win32_watcher->iocp);
+    CloseHandle(win32_watcher->dir_handle);
+    win32_watcher = 0;
+}
+
+u64 os_get_ticks() {
     LARGE_INTEGER counter;
-    if (QueryPerformanceCounter(&counter))
-        result = (counter.QuadPart * ((u64)1e6)) / os_get_micro_second_resolution();
-    return result;
+    QueryPerformanceCounter(&counter);
+    return (u64)(counter.QuadPart);
 }
 
 ////////////////////////////////
