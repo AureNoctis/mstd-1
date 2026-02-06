@@ -22,7 +22,7 @@ global OS_Win32_State os_win32_state;
 
  void os_init_state() {
 
-    b32 large_pages_allowed = 0;
+    u32 large_pages_allowed = 0;
 
     {
         HANDLE token;
@@ -83,12 +83,12 @@ f64 os_get_inverse_ticks_per_us() {
 
 OS_Handle os_load_lib(char* name) {
     OS_Handle handle;
-    handle.val[0] = LoadLibraryA(name);
+    handle.val[0] = (u64)LoadLibraryA(name);
     return handle;
 }
 
 void* os_load_symbol(OS_Handle lib, char* name) {
-    return GetProcAddress((HMODULE)lib.val[0], name);
+    return (void*)GetProcAddress((HMODULE)lib.val[0], name);
 }
 
 void os_attach_console_if_exists() {
@@ -103,14 +103,14 @@ void os_attach_console_if_exists() {
     }
 }
 
-void* os_reserve(u64 size, b32 large_pages) {
+void* os_reserve(u64 size, u32 large_pages) {
     void* result = (large_pages) ? VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE)
         : VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
     return result;
 }
 
-b8 os_commit(void* ptr, u64 size, b32 large_pages) {
-    b8 result = (large_pages) ? 1 : (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != NULL);
+u8 os_commit(void* ptr, u64 size, u32 large_pages) {
+    u8 result = (large_pages) ? 1 : (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != NULL);
     return result;
 }
 
@@ -242,20 +242,20 @@ void os_file_move(Str8 src, Str8 dest) {
     arena_scratch_end(scratch);
 }
 
-b32 os_file_path_exists(Str8 path) {
+u32 os_file_path_exists(Str8 path) {
     ArenaScratch scratch = arena_scratch_begin();
     Str16 path_w32 = str16_from_8(scratch.arena, path);
     DWORD attributes = GetFileAttributesW((WCHAR*)path_w32.data);
-    b32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && !!(~attributes & FILE_ATTRIBUTE_DIRECTORY);
+    u32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && !!(~attributes & FILE_ATTRIBUTE_DIRECTORY);
     arena_scratch_end(scratch);
     return exists;
 }
 
-b32 os_file_directory_exists(Str8 path) {
+u32 os_file_directory_exists(Str8 path) {
     ArenaScratch scratch = arena_scratch_begin();
     Str16 path_w32 = str16_from_8(scratch.arena, path);
     DWORD attributes = GetFileAttributesW((WCHAR*)path_w32.data);
-    b32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+    u32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
     arena_scratch_end(scratch);
     return exists;
 }
@@ -266,11 +266,11 @@ struct OS_Win32_FileWatcher {
     HANDLE dir_handle;
     HANDLE iocp;
     u8 notification_buffer[KB(4)];
-    b32 scan_sub_tree;
+    u32 scan_sub_tree;
     OVERLAPPED overlapped;
 };
 
-OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, b32 watch_sub_directory) {
+OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_directory) {
     Str16 u16_path = str16_from_8(arena, path);
 
     HANDLE dir = CreateFileW(u16_path.data, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -284,21 +284,20 @@ OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, b32 watch_sub_di
     watcher->arena = arena;
     watcher->scan_sub_tree = watch_sub_directory;
     watcher->dir_handle = dir;
-
     watcher->iocp = CreateIoCompletionPort(watcher->dir_handle, NULL, 0, 1);
 
     mem_zero_struct(&watcher->overlapped);
-    BOOL success = ReadDirectoryChangesW(watcher->dir_handle,
+    debug_trap_code_if(ReadDirectoryChangesW(watcher->dir_handle,
                                          watcher->notification_buffer,
                                          sizeof(watcher->notification_buffer),
                                          watcher->scan_sub_tree,
                                          FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME,
-                                         NULL, &watcher->overlapped, NULL);
+                                         NULL, &watcher->overlapped, NULL), ==, 0);
     debug_validate(success);
     return(watcher);
 }
 
-b32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file) {
+u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file) {
     OS_Win32_FileWatcher* win32_watcher = (OS_Win32_FileWatcher*)watcher;
     DWORD bytes = 0;
     ULONG_PTR key = 0;
@@ -362,33 +361,3 @@ u64 os_get_ticks() {
     QueryPerformanceCounter(&counter);
     return (u64)(counter.QuadPart);
 }
-
-////////////////////////////////
-// Entrypoint: use if needed
-
-#if MSTD_USE_MAIN
-
-int wmain() {
-    os_init_state();
-    return mstd_main();
-}
-
-#elif MSTD_USE_GUI_MAIN
-
-int WINAPI wWinMain(
-    _In_        HINSTANCE hInstance,
-    _In_opt_    HINSTANCE hPrevInstance,
-    _In_        LPWSTR lpCmdLine,
-    _In_        int nShowCmd
-) {
-    (void)(hInstance);
-    (void)(hPrevInstance);
-    (void)(lpCmdLine);
-    (void)(nShowCmd);
-
-    os_init_state();
-    os_attach_console_if_exists();
-
-    return mstd_main();
-}
-#endif

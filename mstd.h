@@ -216,10 +216,6 @@ typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
-typedef u8  b8;
-typedef u16 b16;
-typedef u32 b32;
-typedef u64 b64;
 
 typedef float  f32;
 typedef double f64;
@@ -228,6 +224,139 @@ typedef intptr_t  iptr;
 typedef uintptr_t uptr;
 
 #define enum_t(enum, storage_data_type) storage_data_type
+
+////////////////////////////////
+// Types: Constants
+
+#define bit_0  (1ULL << 0)
+#define bit_1  (1ULL << 1)
+#define bit_2  (1ULL << 2)
+#define bit_3  (1ULL << 3)
+#define bit_4  (1ULL << 4)
+#define bit_5  (1ULL << 5)
+#define bit_6  (1ULL << 6)
+#define bit_7  (1ULL << 7)
+#define bit_8  (1ULL << 8)
+#define bit_9  (1ULL << 9)
+#define bit_10 (1ULL << 10)
+#define bit_11 (1ULL << 11)
+#define bit_12 (1ULL << 12)
+#define bit_13 (1ULL << 13)
+#define bit_14 (1ULL << 14)
+#define bit_15 (1ULL << 15)
+#define bit_16 (1ULL << 16)
+#define bit_17 (1ULL << 17)
+#define bit_18 (1ULL << 18)
+#define bit_19 (1ULL << 19)
+#define bit_20 (1ULL << 20)
+#define bit_21 (1ULL << 21)
+#define bit_22 (1ULL << 22)
+#define bit_23 (1ULL << 23)
+#define bit_24 (1ULL << 24)
+#define bit_25 (1ULL << 25)
+#define bit_26 (1ULL << 26)
+#define bit_27 (1ULL << 27)
+#define bit_28 (1ULL << 28)
+#define bit_29 (1ULL << 29)
+#define bit_30 (1ULL << 30)
+#define bit_31 (1ULL << 31)
+#define bit_32 (1ULL << 32)
+#define bit_33 (1ULL << 33)
+#define bit_34 (1ULL << 34)
+#define bit_35 (1ULL << 35)
+#define bit_36 (1ULL << 36)
+#define bit_37 (1ULL << 37)
+#define bit_38 (1ULL << 38)
+#define bit_39 (1ULL << 39)
+#define bit_40 (1ULL << 40)
+#define bit_41 (1ULL << 41)
+#define bit_42 (1ULL << 42)
+#define bit_43 (1ULL << 43)
+#define bit_44 (1ULL << 44)
+#define bit_45 (1ULL << 45)
+#define bit_46 (1ULL << 46)
+#define bit_47 (1ULL << 47)
+#define bit_48 (1ULL << 48)
+#define bit_49 (1ULL << 49)
+#define bit_50 (1ULL << 50)
+#define bit_51 (1ULL << 51)
+#define bit_52 (1ULL << 52)
+#define bit_53 (1ULL << 53)
+#define bit_54 (1ULL << 54)
+#define bit_55 (1ULL << 55)
+#define bit_56 (1ULL << 56)
+#define bit_57 (1ULL << 57)
+#define bit_58 (1ULL << 58)
+#define bit_59 (1ULL << 59)
+#define bit_60 (1ULL << 60)
+#define bit_61 (1ULL << 61)
+#define bit_62 (1ULL << 62)
+#define bit_63 (1ULL << 63)
+
+#define mask_0  (bit_0)
+#define mask_1  (mask_0  | bit_1)
+#define mask_2  (mask_1  | bit_2)
+#define mask_3  (mask_2  | bit_3)
+#define mask_4  (mask_3  | bit_4)
+#define mask_5  (mask_4  | bit_5)
+#define mask_6  (mask_5  | bit_6)
+#define mask_7  (mask_6  | bit_7)
+#define mask_8  (mask_7  | bit_8)
+#define mask_9  (mask_8  | bit_9)
+#define mask_10 (mask_9  | bit_10)
+#define mask_11 (mask_10 | bit_11)
+#define mask_12 (mask_11 | bit_12)
+#define mask_13 (mask_12 | bit_13)
+#define mask_14 (mask_13 | bit_14)
+#define mask_15 (mask_14 | bit_15)
+#define mask_16 (mask_15 | bit_16)
+#define mask_17 (mask_16 | bit_17)
+#define mask_18 (mask_17 | bit_18)
+#define mask_19 (mask_18 | bit_19)
+#define mask_20 (mask_19 | bit_20)
+#define mask_21 (mask_20 | bit_21)
+#define mask_22 (mask_21 | bit_22)
+#define mask_23 (mask_22 | bit_23)
+#define mask_24 (mask_23 | bit_24)
+#define mask_25 (mask_24 | bit_25)
+#define mask_26 (mask_25 | bit_26)
+#define mask_27 (mask_26 | bit_27)
+#define mask_28 (mask_27 | bit_28)
+#define mask_29 (mask_28 | bit_29)
+#define mask_30 (mask_29 | bit_30)
+#define mask_31 (mask_30 | bit_31)
+#define mask_32 (mask_31 | bit_32)
+#define mask_33 (mask_32 | bit_33)
+#define mask_34 (mask_33 | bit_34)
+#define mask_35 (mask_34 | bit_35)
+#define mask_36 (mask_35 | bit_36)
+#define mask_37 (mask_36 | bit_37)
+#define mask_38 (mask_37 | bit_38)
+#define mask_39 (mask_38 | bit_39)
+#define mask_40 (mask_39 | bit_40)
+#define mask_41 (mask_40 | bit_41)
+#define mask_42 (mask_41 | bit_42)
+#define mask_43 (mask_42 | bit_43)
+#define mask_44 (mask_43 | bit_44)
+#define mask_45 (mask_44 | bit_45)
+#define mask_46 (mask_45 | bit_46)
+#define mask_47 (mask_46 | bit_47)
+#define mask_48 (mask_47 | bit_48)
+#define mask_49 (mask_48 | bit_49)
+#define mask_50 (mask_49 | bit_50)
+#define mask_51 (mask_50 | bit_51)
+#define mask_52 (mask_51 | bit_52)
+#define mask_53 (mask_52 | bit_53)
+#define mask_54 (mask_53 | bit_54)
+#define mask_55 (mask_54 | bit_55)
+#define mask_56 (mask_55 | bit_56)
+#define mask_57 (mask_56 | bit_57)
+#define mask_58 (mask_57 | bit_58)
+#define mask_59 (mask_58 | bit_59)
+#define mask_60 (mask_59 | bit_60)
+#define mask_61 (mask_60 | bit_61)
+#define mask_62 (mask_61 | bit_62)
+#define mask_63 (mask_62 | bit_63)
 
 ////////////////////////////////
 // Types: Vecs
@@ -297,23 +426,24 @@ struct Arena {
     u64 cursor;
     u64 committed;
     u64 reserved;
-    enum_t(ArenaFlag, b32) flags;
+    enum_t(ArenaFlag, u32) flags;
     u32 page_size;
 };
+
+#define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
 typedef struct ArenaTemp ArenaTemp;
 struct ArenaTemp {
     Arena* arena;
-    u64 cursor;
+    union {
+        u64 cursor;
+        u64 index;
+    };
 };
 
-typedef struct ArenaScratch ArenaScratch;
-struct ArenaScratch {
-    Arena* arena;
-    u64 index;
-};
+typedef ArenaTemp ArenaScratch;
 
- Arena* arena_alloc(u64 reserve_size, ArenaFlag flags);
+Arena* arena_alloc(u64 reserve_size, ArenaFlag flags);
 
 void* arena_push(Arena* arena, u64 size, u64 align);
 #define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), align_of(T))
@@ -322,8 +452,11 @@ void* arena_push(Arena* arena, u64 size, u64 align);
 void arena_reset(Arena* arena);
 void arena_release(Arena *arena);
 
+/// @brief This function can have 0 passed as param which causes it to create a TLS scratch arena.
 ArenaTemp arena_temp_begin(Arena* arena);
 void arena_temp_end(ArenaTemp temp);
+
+/// this macro defines a loop which will run once. use { //code  } just after it.
 #define arena_temp_scope(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
 
 ArenaScratch arena_scratch_begin();
@@ -434,10 +567,10 @@ u32 utf16_size(u32 cp);
 
 void str8_to_lower(Str8 text);
 void str8_to_upper(Str8 text);
-b8 str8_equal(Str8 a, Str8 b);
+u8 str8_equal(Str8 a, Str8 b);
 Str16 str16_from_cstr(u16* str);
 #define str16_literal(literal) str16_from_cstr((u16*)literal)
-b8 str16_equal(Str16 a, Str16 b);
+u8 str16_equal(Str16 a, Str16 b);
 Str8 str8_from_16(Arena* arena, Str16 text);
 Str16 str16_from_8(Arena* arena, Str8 text);
 Str8 str8_from_32(Arena* arena, Str32 text);
@@ -459,7 +592,7 @@ struct OS_SystemInfo {
 typedef struct OS_ProcessInfo OS_ProcessInfo;
 struct OS_ProcessInfo {
     u32 id;
-    b32 large_pages_allowed;
+    u32 large_pages_allowed;
     Str8 current_working_directory;
 };
 
@@ -484,8 +617,8 @@ void os_attach_console_if_exists();
 ////////////////////////////////
 // OS: Memory Helpers
 
-void* os_reserve(u64 size, b32 large_pages);
-b8 os_commit(void* ptr, u64 size, b32 large_pages);
+void* os_reserve(u64 size, u32 large_pages);
+u8 os_commit(void* ptr, u64 size, u32 large_pages);
 void os_decommit(void* ptr, u64 size);
 void os_release(void* ptr, u64 size);
 
@@ -524,11 +657,11 @@ u64 os_file_get_size(OS_Handle handle);
 void os_file_delete(Str8 path);
 void os_file_copy(Str8 src, Str8 dest);
 void os_file_move(Str8 src, Str8 dest);
-b32 os_file_path_exists(Str8 path);
-b32 os_file_directory_exists(Str8 path);
+u32 os_file_path_exists(Str8 path);
+u32 os_file_directory_exists(Str8 path);
 
-OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, b32 watch_sub_directory);
-b32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file);
+OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_directory);
+u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file);
 void os_file_watcher_destroy(OS_FileWatcher* watcher);
 
 ////////////////////////////////
@@ -544,12 +677,5 @@ struct Timer {
 
 Timer timer_init();
 void timer_update(Timer* timer);
-
-////////////////////////////////
-// Entrypoint: i32 mstd_main() {}
-// #define MSTD_USE_MAIN
-// #define MSTD_USE_GUI_MAIN
-
-i32 mstd_main();
 
 #endif // MSTD_H
