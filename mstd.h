@@ -96,7 +96,6 @@
 // Macros: Memory
 
 #if defined(COMPILER_MSVC)
-#include <intrin.h>
     void* memmove(void* dest, const void* src, size_t count);
     int memcmp(const void* buffer1, const void* buffer2, size_t count);
     #pragma intrinsic(memcmp, memmove)
@@ -187,7 +186,6 @@
 #define _concat(a, b) a##b
 #define concat(a,b) _concat(a,b)
 
-#define internal static
 #define global static
 
 #define is_pow2(x) ((x) != 0 && (((x) & ((x) - 1)) == 0))
@@ -293,71 +291,6 @@ typedef uintptr_t uptr;
 #define bit_62 (1ULL << 62)
 #define bit_63 (1ULL << 63)
 
-#define mask_0  (bit_0)
-#define mask_1  (mask_0  | bit_1)
-#define mask_2  (mask_1  | bit_2)
-#define mask_3  (mask_2  | bit_3)
-#define mask_4  (mask_3  | bit_4)
-#define mask_5  (mask_4  | bit_5)
-#define mask_6  (mask_5  | bit_6)
-#define mask_7  (mask_6  | bit_7)
-#define mask_8  (mask_7  | bit_8)
-#define mask_9  (mask_8  | bit_9)
-#define mask_10 (mask_9  | bit_10)
-#define mask_11 (mask_10 | bit_11)
-#define mask_12 (mask_11 | bit_12)
-#define mask_13 (mask_12 | bit_13)
-#define mask_14 (mask_13 | bit_14)
-#define mask_15 (mask_14 | bit_15)
-#define mask_16 (mask_15 | bit_16)
-#define mask_17 (mask_16 | bit_17)
-#define mask_18 (mask_17 | bit_18)
-#define mask_19 (mask_18 | bit_19)
-#define mask_20 (mask_19 | bit_20)
-#define mask_21 (mask_20 | bit_21)
-#define mask_22 (mask_21 | bit_22)
-#define mask_23 (mask_22 | bit_23)
-#define mask_24 (mask_23 | bit_24)
-#define mask_25 (mask_24 | bit_25)
-#define mask_26 (mask_25 | bit_26)
-#define mask_27 (mask_26 | bit_27)
-#define mask_28 (mask_27 | bit_28)
-#define mask_29 (mask_28 | bit_29)
-#define mask_30 (mask_29 | bit_30)
-#define mask_31 (mask_30 | bit_31)
-#define mask_32 (mask_31 | bit_32)
-#define mask_33 (mask_32 | bit_33)
-#define mask_34 (mask_33 | bit_34)
-#define mask_35 (mask_34 | bit_35)
-#define mask_36 (mask_35 | bit_36)
-#define mask_37 (mask_36 | bit_37)
-#define mask_38 (mask_37 | bit_38)
-#define mask_39 (mask_38 | bit_39)
-#define mask_40 (mask_39 | bit_40)
-#define mask_41 (mask_40 | bit_41)
-#define mask_42 (mask_41 | bit_42)
-#define mask_43 (mask_42 | bit_43)
-#define mask_44 (mask_43 | bit_44)
-#define mask_45 (mask_44 | bit_45)
-#define mask_46 (mask_45 | bit_46)
-#define mask_47 (mask_46 | bit_47)
-#define mask_48 (mask_47 | bit_48)
-#define mask_49 (mask_48 | bit_49)
-#define mask_50 (mask_49 | bit_50)
-#define mask_51 (mask_50 | bit_51)
-#define mask_52 (mask_51 | bit_52)
-#define mask_53 (mask_52 | bit_53)
-#define mask_54 (mask_53 | bit_54)
-#define mask_55 (mask_54 | bit_55)
-#define mask_56 (mask_55 | bit_56)
-#define mask_57 (mask_56 | bit_57)
-#define mask_58 (mask_57 | bit_58)
-#define mask_59 (mask_58 | bit_59)
-#define mask_60 (mask_59 | bit_60)
-#define mask_61 (mask_60 | bit_61)
-#define mask_62 (mask_61 | bit_62)
-#define mask_63 (mask_62 | bit_63)
-
 ////////////////////////////////
 // Types: Vecs
 
@@ -398,10 +331,10 @@ VEC_GEN(f32);
 VEC_GEN(f64);
 
 #if COMPILER_MSVC
-static i32 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? where : -1; }
-static i32 u32_lsb(u32 mask) { unsigned long where; return _BitScanForward(&where, mask) ? where : -1; }
-static i32 u64_msb(u64 mask) { unsigned long where; return _BitScanReverse64(&where, mask) ? where : -1; }
-static i32 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&where, mask) ? where : -1; }
+static i8 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? (i8)where : -1; }
+static i8 u32_lsb(u32 mask) { unsigned long where; return _BitScanForward(&where, mask) ? (i8)where : -1; }
+static i8 u64_msb(u64 mask) { unsigned long where; return _BitScanReverse64(&where, mask) ? (i8)where : -1; }
+static i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&where, mask) ? (i8)where : -1; }
 #elif COMPILER_CLANG || COMPILER_GCC
 #define u32_msb(x) ((x) == 0 ? -1 : 31 - __builtin_clz(x))
 #define u32_lsb(x) ((x) == 0 ? -1 : __builtin_ctz(x))
@@ -677,5 +610,24 @@ struct Timer {
 
 Timer timer_init();
 void timer_update(Timer* timer);
+
+//////////////////////////////
+// Types: DArray
+
+typedef struct DArrayHeader DArrayHeader;
+struct DArrayHeader {
+    u64 size;
+};
+
+typedef struct DarrayMetaData DarrayMetaData;
+struct DarrayMetaData {
+    u8 shift;
+    u8 chunks_n;
+    u64 el_size;
+};
+
+force_inline static void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index);
+
+
 
 #endif // MSTD_H

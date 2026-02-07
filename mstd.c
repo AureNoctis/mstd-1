@@ -1,4 +1,4 @@
-#include <math.h>
+#include "mstd.h"
 
 #if OS_WINDOWS
 #include "mstd_win32.c"

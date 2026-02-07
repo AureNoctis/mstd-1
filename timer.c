@@ -1,3 +1,5 @@
+#include <math.h>
+
 Timer timer_init() {
     Timer timer = {0};
     timer.ticks = os_get_ticks();

@@ -1,5 +1,3 @@
-#include "mstd.h"
-
 #include <Windows.h>
 #include <direct.h>
 #include <fcntl.h>
