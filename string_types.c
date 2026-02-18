@@ -1,4 +1,4 @@
-Str8 str8_from_cstr(u8* str) {
+Str8 _str8_from_cstr(u8* str) {
     Str8 text;
     text.data = str;
     text.size = strlen((char*)str);

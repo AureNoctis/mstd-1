@@ -59,7 +59,7 @@ global OS_Win32_State os_win32_state;
     os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, 0);
     u8 cwd[1024];
     debug_validate(_getcwd((char*)cwd, sizeof(cwd)));
-    os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8_literal(cwd));
+    os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8_from_cstr(cwd));
 
 }
 
@@ -291,7 +291,6 @@ OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_di
                                          watcher->scan_sub_tree,
                                          FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME,
                                          NULL, &watcher->overlapped, NULL), ==, 0);
-    debug_validate(success);
     return(watcher);
 }
 

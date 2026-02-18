@@ -172,9 +172,11 @@
 #if MSTD_DEBUG
     #define debug_trap_code_if(code, op, check) while((code) op (check)) { trap(); }
     #define debug_trap_if(condition) while(condition) { trap(); }
+    #define DEBUG_TRUE 1
 #else
     #define debug_trap_code_if(code, op, check) ((void)(code))
     #define debug_trap_if(condition)
+    #define DEBUG_TRUE 0
 #endif
 
 #define debug_validate_code(code, check) debug_trap_code_if(code, !=, check)
@@ -485,8 +487,8 @@ align_to(64) global const u8 ASCII_LUT[256] = {
 #define str8_char_to_upper(c)        ((u8)((u8)(c) ^ (str8_char_is_lower(c) ? 0x20 : 0)))
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
-Str8 str8_from_cstr(u8* str);
-#define str8_literal(literal) str8_from_cstr((u8*)literal)
+Str8 _str8_from_cstr(u8* str);
+#define str8_from_cstr(literal) _str8_from_cstr((u8*)literal)
 
 Str8 str8_of_size(Arena* arena, u64 size);
 Str16 str16_of_size(Arena* arena, u64 size);
