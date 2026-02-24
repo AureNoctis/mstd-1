@@ -225,6 +225,25 @@ typedef uintptr_t uptr;
 
 #define enum_t(enum, storage_data_type) storage_data_type
 
+#if COMPILER_MSVC
+
+static i8 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? (i8)where : -1; }
+static i8 u64_msb(u64 mask) { unsigned long where; return _BitScanReverse64(&where, mask) ? (i8)where : -1; }
+static i8 u32_lsb(u32 mask) { unsigned long where; return _BitScanForward(&where, mask) ? (i8)where : -1; }
+static i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&where, mask) ? (i8)where : -1; }
+#define u32_count_set_bits __popcnt
+#define u64_count_set_bits __popcnt64
+
+#elif COMPILER_CLANG || COMPILER_GCC
+
+#define u32_msb(x) ((x) == 0 ? -1 : 31 - __builtin_clz(x))
+#define u64_msb(x) ((x) == 0 ? -1 : 63 - __builtin_clzll(x))
+#define u32_lsb(x) ((x) == 0 ? -1 : __builtin_ctz(x))
+#define u64_lsb(x) ((x) == 0 ? -1 : __builtin_ctzll(x))
+#define u32_count_set_bits __builtin_popcount
+#define u64_count_set_bits __builtin_popcountll
+#endif
+
 ////////////////////////////////
 // Types: Constants
 
@@ -331,18 +350,6 @@ VEC_GEN(i64);
 
 VEC_GEN(f32);
 VEC_GEN(f64);
-
-#if COMPILER_MSVC
-static i8 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? (i8)where : -1; }
-static i8 u32_lsb(u32 mask) { unsigned long where; return _BitScanForward(&where, mask) ? (i8)where : -1; }
-static i8 u64_msb(u64 mask) { unsigned long where; return _BitScanReverse64(&where, mask) ? (i8)where : -1; }
-static i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&where, mask) ? (i8)where : -1; }
-#elif COMPILER_CLANG || COMPILER_GCC
-#define u32_msb(x) ((x) == 0 ? -1 : 31 - __builtin_clz(x))
-#define u32_lsb(x) ((x) == 0 ? -1 : __builtin_ctz(x))
-#define u64_msb(x) ((x) == 0 ? -1 : 63 - __builtin_clzll(x))
-#define u64_lsb(x) ((x) == 0 ? -1 : __builtin_ctzll(x))
-#endif
 
 ////////////////////////////////
 // Types: Arena
@@ -487,11 +494,20 @@ align_to(64) global const u8 ASCII_LUT[256] = {
 #define str8_char_to_upper(c)        ((u8)((u8)(c) ^ (str8_char_is_lower(c) ? 0x20 : 0)))
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
-Str8 _str8_from_cstr(u8* str);
-#define str8_from_cstr(literal) _str8_from_cstr((u8*)literal)
+Str8 str8_from_cstr(u8* str);
+
+#define str8(literal) _Generic((literal) + 0,                \
+    char*:              str8_from_cstr((u8*)literal),        \
+    const char*:        str8_from_cstr((u8*)literal),        \
+    u8*:                str8_from_cstr((u8*)literal),        \
+    const u8*:          str8_from_cstr((u8*)literal)         \
+)
 
 Str8 str8_of_size(Arena* arena, u64 size);
 Str16 str16_of_size(Arena* arena, u64 size);
+
+Str8 str8_concat(Arena* arena, Str8 a, Str8 b);
+Str16 str16_concat(Arena* arena, Str16 a, Str16 b);
 
 UnicodeDecode utf8_decode(u8* str, u64 max);
 UnicodeDecode utf16_decode(u16* str, u64 max);
@@ -504,7 +520,7 @@ void str8_to_lower(Str8 text);
 void str8_to_upper(Str8 text);
 u8 str8_equal(Str8 a, Str8 b);
 Str16 str16_from_cstr(u16* str);
-#define str16_literal(literal) str16_from_cstr((u16*)literal)
+#define str16(literal) str16_from_cstr((u16*)literal)
 u8 str16_equal(Str16 a, Str16 b);
 Str8 str8_from_16(Arena* arena, Str16 text);
 Str16 str16_from_8(Arena* arena, Str8 text);
@@ -588,8 +604,11 @@ void os_file_close(OS_Handle handle);
 u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
 #define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
 u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
-u64 os_file_get_size(OS_Handle handle);
+#define os_file_write_struct(handle, offset, struct_ptr) os_file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
+
+
 void os_file_delete(Str8 path);
+u64 os_file_get_size(OS_Handle handle);
 void os_file_copy(Str8 src, Str8 dest);
 void os_file_move(Str8 src, Str8 dest);
 u32 os_file_path_exists(Str8 path);

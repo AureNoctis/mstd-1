@@ -1,7 +1,14 @@
-Str8 _str8_from_cstr(u8* str) {
+#include "mstd.h"
+force_inline static u64 str8_get_length_from_cstr(u8* data) {
+    u64 i = 0;
+    for(i; data[i] != 0; i++) {}
+    return(i);
+}
+
+Str8 str8_from_cstr(u8* str) {
     Str8 text;
     text.data = str;
-    text.size = strlen((char*)str);
+    text.size = str8_get_length_from_cstr(str);
     return text;
 }
 
@@ -21,6 +28,19 @@ Str16 str16_of_size(Arena* arena, u64 size) {
     return text;
 }
 
+Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
+    Str8 result = str8_of_size(arena, a.size + b.size);
+    mem_copy(result.data, a.data, a.size);
+    mem_copy(result.data + a.size, b.data, b.size);
+    result.data[result.size] = 0;
+}
+
+Str16 str16_concat(Arena* arena, Str16 a, Str16 b) {
+    Str16 result = str16_of_size(arena, a.size + b.size);
+    mem_copy(result.data, a.data, a.size);
+    mem_copy(result.data + a.size, b.data, b.size);
+    result.data[result.size] = 0;
+}
 void str8_to_lower(Str8 text) {
     for (u64 i = 0; i < text.size; i++) {
         text.data[i] = str8_char_to_lower(text.data[i]);
@@ -37,11 +57,16 @@ u8 str8_equal(Str8 a, Str8 b) {
     return (a.size == b.size) ? mem_match(a.data, b.data, a.size) : 0;
 }
 
+force_inline static u64 str16_get_length_from_cstr(u16* data) {
+    u64 i = 0;
+    for(i; data[i] != 0; i++) {}
+    return(i);
+}
+
 Str16 str16_from_cstr(u16* str) {
     Str16 text;
     text.data = str;
-    text.size = 0;
-    while (text.data[text.size] != 0) text.size++;
+    text.size = str16_get_length_from_cstr(str);
     return text;
 }
 

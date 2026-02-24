@@ -59,7 +59,7 @@ global OS_Win32_State os_win32_state;
     os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, 0);
     u8 cwd[1024];
     debug_validate(_getcwd((char*)cwd, sizeof(cwd)));
-    os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8_from_cstr(cwd));
+    os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8(cwd));
 
 }
 
