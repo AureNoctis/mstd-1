@@ -389,7 +389,7 @@ Arena* arena_alloc(u64 reserve_size, ArenaFlag flags);
 
 void* arena_push(Arena* arena, u64 size, u64 align);
 #define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), align_of(T))
-#define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * count, align_of(T))
+#define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), align_of(T))
 
 void arena_reset(Arena* arena);
 void arena_release(Arena *arena);

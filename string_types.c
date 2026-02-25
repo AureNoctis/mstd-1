@@ -14,7 +14,8 @@ Str8 str8_from_cstr(u8* str) {
 
 Str8 str8_of_size(Arena* arena, u64 size) {
     Str8 text;
-    text.data = arena_push_array(arena, u8, size + 1);
+    u8* ptr = arena_push_array(arena, u8, size + 1);
+    text.data = ptr;
     text.size = size;
     text.data[text.size] = 0;
     return text;
@@ -22,7 +23,8 @@ Str8 str8_of_size(Arena* arena, u64 size) {
 
 Str16 str16_of_size(Arena* arena, u64 size) {
     Str16 text;
-    text.data = arena_push_array(arena, u16, size + 1);
+    u16* ptr = arena_push_array(arena, u16, size + 1);
+    text.data = ptr;
     text.size = size;
     text.data[text.size] = 0;
     return text;
@@ -33,6 +35,7 @@ Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
     mem_copy(result.data, a.data, a.size);
     mem_copy(result.data + a.size, b.data, b.size);
     result.data[result.size] = 0;
+    return result;
 }
 
 Str16 str16_concat(Arena* arena, Str16 a, Str16 b) {
@@ -40,6 +43,7 @@ Str16 str16_concat(Arena* arena, Str16 a, Str16 b) {
     mem_copy(result.data, a.data, a.size);
     mem_copy(result.data + a.size, b.data, b.size);
     result.data[result.size] = 0;
+    return result;
 }
 void str8_to_lower(Str8 text) {
     for (u64 i = 0; i < text.size; i++) {

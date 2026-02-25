@@ -134,7 +134,7 @@ OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
     if (flags & OS_ACCESS_FLAG_EXECUTE)     { access_flags |= GENERIC_EXECUTE; }
     if (flags & OS_ACCESS_FLAG_SHARE_READ)  { share_mode |= FILE_SHARE_READ; }
     if (flags & OS_ACCESS_FLAG_SHARE_WRITE) { share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE; }
-    if (flags & OS_ACCESS_FLAG_SHARE_WRITE) { creation_disposition |= OPEN_ALWAYS; access_flags |= FILE_APPEND_DATA; }
+    if (flags & OS_ACCESS_FLAG_APPEND)      { access_flags &= ~GENERIC_WRITE; access_flags |= FILE_APPEND_DATA; creation_disposition = OPEN_ALWAYS;}
 
     HANDLE file = CreateFile((WCHAR*)path_w32.data, access_flags, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
     if (file != INVALID_HANDLE_VALUE)

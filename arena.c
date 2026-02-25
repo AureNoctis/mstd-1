@@ -75,7 +75,7 @@ ArenaScratch arena_scratch_begin() {
         Arena** slot = &__arena_scratch[index];
         if (*slot == 0)
             *slot = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, ARENA_FLAG_NONE);
-        (*slot)->cursor = 0;
+        arena_reset((*slot));
         __arena_scratch_available_mask &= ~(1u << index);
         scratch.arena = *slot;
         scratch.index = (u32)index;
