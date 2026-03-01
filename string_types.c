@@ -12,6 +12,26 @@ Str8 str8_from_cstr(u8* str) {
     return text;
 }
 
+Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...) {
+    Str8 result = { 0 };
+
+    va_list args;
+    va_start(args, (char*)fmt);
+
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int length = vsnprintf(NULL, 0, (char*)fmt, args_copy);
+    va_end(args_copy);
+
+    if(length > 0) {
+        result = str8_of_size(arena, length);
+        vsnprintf((char*)result.data, result.size + 1, (char*)fmt, args);
+    }
+    va_end(args);
+
+    return result;
+}
+
 Str8 str8_of_size(Arena* arena, u64 size) {
     Str8 text;
     u8* ptr = arena_push_array(arena, u8, size + 1);

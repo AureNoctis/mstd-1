@@ -79,14 +79,14 @@ f64 os_get_inverse_ticks_per_us() {
     return os_win32_state.inverse_ticks_per_us;
 }
 
-OS_Handle os_load_lib(char* name) {
+OS_Handle os_load_lib(u8* name) {
     OS_Handle handle;
-    handle.val[0] = (u64)LoadLibraryA(name);
+    handle.val[0] = (u64)LoadLibraryA((char*)name);
     return handle;
 }
 
-void* os_load_symbol(OS_Handle lib, char* name) {
-    return (void*)GetProcAddress((HMODULE)lib.val[0], name);
+void* os_load_symbol(OS_Handle lib, u8* name) {
+    return (void*)GetProcAddress((HMODULE)lib.val[0], (char*)name);
 }
 
 void os_attach_console_if_exists() {

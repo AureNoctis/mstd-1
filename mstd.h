@@ -100,8 +100,8 @@
     int memcmp(const void* buffer1, const void* buffer2, size_t count);
     #pragma intrinsic(memcmp, memmove)
     #define trap()                    __debugbreak()
-    #define mem_set(p, byte, size)    __stosb((unsigned char*)(p), (unsigned char)(byte), (size))
-    #define mem_copy(dest, src, size) __movsb((unsigned char*)(dest), (const unsigned char*)(src), (size))
+    #define mem_set(p, byte, size)    __stosb((u8*)(p), (u8)(byte), (size))
+    #define mem_copy(dest, src, size) __movsb((u8*)(dest), (const u8*)(src), (size))
     #define mem_move(dest, src, size) memmove((dest), (src), (size))
     #define mem_match(a, b, size)     (memcmp((a), (b), (size)) == 0)
 #elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
@@ -207,6 +207,10 @@
 
 ////////////////////////////////
 // Types: Basic
+
+#ifndef MSTD_BASE_TYPES
+    #define MSTD_BASE_TYPES 1
+#endif
 
 typedef int8_t   i8;
 typedef int16_t  i16;
@@ -398,11 +402,15 @@ void arena_release(Arena *arena);
 ArenaTemp arena_temp_begin(Arena* arena);
 void arena_temp_end(ArenaTemp temp);
 
-/// this macro defines a loop which will run once. use { //code  } just after it.
+/// @brief defines a loop which will run once. use { //code  } just after it.
 #define arena_temp_scope(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
 
 ArenaScratch arena_scratch_begin();
 void arena_scratch_end(ArenaScratch scratch);
+
+/// @brief defines a loop which will run once. use { //code  } just after it.
+/// @param scratch - name you pass should be used in the scope
+#define arena_scratch_scope(scratch) for (ArenaScratch scratch = arena_scratch_begin(); scratch.arena != NULL; arena_scratch_end(scratch), scratch.arena.arena = NULL)
 
 ////////////////////////////////
 // Types: Str8, Str16, Str32
@@ -411,12 +419,6 @@ typedef struct Str8 Str8;
 struct Str8 {
     u8* data;
     u64 size;
-};
-
-typedef struct Str8List Str8List;
-struct Str8List {
-    Str8 str8_node;
-    Str8List* next;
 };
 
 typedef struct Str16 Str16;
@@ -503,6 +505,9 @@ Str8 str8_from_cstr(u8* str);
     const u8*:          str8_from_cstr((u8*)literal)         \
 )
 
+Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
+#define str8_from_fmt(arena, fmt, ...) _str8_from_fmt(arena, (u8*)fmt, ##__VA_ARGS__)
+
 Str8 str8_of_size(Arena* arena, u64 size);
 Str16 str16_of_size(Arena* arena, u64 size);
 
@@ -528,6 +533,84 @@ Str8 str8_from_32(Arena* arena, Str32 text);
 Str32 str32_from_8(Arena* arena, Str8 text);
 Str8 str8_copy(Arena* arena, Str8 text);
 Str16 str16_copy(Arena* arena, Str16 text);
+
+////////////////////////////////
+// Linked List
+#define SLL_STACK_GEN(ListType, NodeType) \
+typedef struct NodeType NodeType; \
+struct NodeType { \
+    Str8 data; \
+    NodeType* next; \
+}; \
+ \
+typedef struct ListType ListType; \
+struct ListType { \
+    NodeType* head; \
+};
+
+#define SLL_QUEUE_GEN(ListType, NodeType) \
+typedef struct NodeType NodeType; \
+struct NodeType { \
+    Str8 data; \
+    NodeType* next; \
+}; \
+ \
+typedef struct ListType ListType; \
+struct ListType { \
+    NodeType* head; \
+    NodeType* tail; \
+};
+
+#define DLL_GEN(ListType, NodeType) \
+typedef struct NodeType NodeType; \
+struct NodeType { \
+    Str8 data; \
+    NodeType* next; \
+    NodeType* prev; \
+}; \
+ \
+typedef struct ListType ListType; \
+struct ListType { \
+    NodeType* head; \
+    NodeType* tail; \
+};
+
+#define dll_push_back_np(head, tail, node, next, prev) ((head) == 0 ? \
+        ((head) = (tail) = (node), (node)->next = (node)->prev = 0) \
+        : \
+        ((node)->prev = (tail), (tail)->next = (node), (tail) = (node), (node)->next = 0))
+
+#define dll_push_front_np(head, tail, node, next, prev) dll_push_back_np(tail, head, node, prev, next)
+#define dll_remove_np(head, tail, node, next, prev) (((head) == (node)) ? \
+    (((head) == (tail)) ? ((head) = (tail) = 0) : ((head) = (head)->next, (head)->prev = 0)) \
+    : \
+    ((tail) == (node)) ? ((tail) = (tail)->prev, (tail)->next = 0) : ((node)->next->prev = (node)->prev, (node)->prev->next = (node)->next))
+
+#define dll_push_back(head, tail, node)  dll_push_back_np(head, tail, node, next, prev)
+#define dll_push_front(head, tail, node) dll_push_front_np(head, tail, node, next, prev)
+#define dll_remove(head, tail, node)     dll_remove_np(head, tail, node, next, prev)
+
+#define sll_stack_push_n(head, node, next) ((node)->next = (head), (head) = (node))
+#define sll_stack_pop_n(head, next) ((head) == 0 ? 0 : ((head) = (head)->next))
+
+#define sll_stack_push(head, node) sll_stack_push_n(head, node, next)
+#define sll_stack_pop(head)        sll_stack_pop_n(head, next)
+
+#define sll_queue_push_n(head, tail, node, next) (((head) == 0 ? \
+    (head) = (tail) = (node) \
+    : \
+    ((tail)->next = (node), (tail) = (node))), (node)->next = 0)
+
+#define sll_queue_push_front_n(head, tail, node, next) ((head) == 0 ? \
+    ((head) = (tail) = (node), (node)->next = 0) \
+    : \
+    ((node)->next = (head), (head) = (node)))
+
+#define sll_queue_pop_n(head, tail, next) ((head) == (tail) ? ((head) = (tail) = 0) : ((head) = (head)->next))
+
+#define sll_queue_push(head, tail, node)       sll_queue_push_n(head, tail, node, next)
+#define sll_queue_push_front(head, tail, node) sll_queue_push_front_n(head, tail, node, next)
+#define sll_queue_pop(head, tail)              sll_queue_pop_n(head, tail, next)
 
 ////////////////////////////////
 // OS: Core
@@ -560,8 +643,8 @@ f64 os_get_inverse_ticks_per_us();
 u64 os_get_ticks();
 #define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
 
-OS_Handle os_load_lib(char* name);
-void* os_load_symbol(OS_Handle lib, char* name);
+OS_Handle os_load_lib(u8* name);
+void* os_load_symbol(OS_Handle lib, u8* name);
 
 void os_attach_console_if_exists();
 
@@ -605,6 +688,7 @@ u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
 #define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
 u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
 #define os_file_write_struct(handle, offset, struct_ptr) os_file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
+#define os_file_write_string(handle, str) os_file_write((handle), 0, str.size, str.data)
 
 
 void os_file_delete(Str8 path);
@@ -648,7 +732,4 @@ struct DarrayMetaData {
 };
 
 force_inline static void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index);
-
-
-
 #endif // MSTD_H
