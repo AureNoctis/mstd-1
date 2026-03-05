@@ -1,18 +1,18 @@
 #include "mstd.h"
-force_inline static u64 str8_get_length_from_cstr(u8* data) {
+internal force_inline u64 str8_get_length_from_cstr(u8* data) {
     u64 i = 0;
     for(i; data[i] != 0; i++) {}
     return(i);
 }
 
-Str8 str8_from_cstr(u8* str) {
+function Str8 str8_from_cstr(u8* str) {
     Str8 text;
     text.data = str;
     text.size = str8_get_length_from_cstr(str);
     return text;
 }
 
-Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...) {
+function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...) {
     Str8 result = { 0 };
 
     va_list args;
@@ -32,7 +32,7 @@ Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...) {
     return result;
 }
 
-Str8 str8_of_size(Arena* arena, u64 size) {
+function Str8 str8_of_size(Arena* arena, u64 size) {
     Str8 text;
     u8* ptr = arena_push_array(arena, u8, size + 1);
     text.data = ptr;
@@ -41,7 +41,7 @@ Str8 str8_of_size(Arena* arena, u64 size) {
     return text;
 }
 
-Str16 str16_of_size(Arena* arena, u64 size) {
+function Str16 str16_of_size(Arena* arena, u64 size) {
     Str16 text;
     u16* ptr = arena_push_array(arena, u16, size + 1);
     text.data = ptr;
@@ -50,7 +50,7 @@ Str16 str16_of_size(Arena* arena, u64 size) {
     return text;
 }
 
-Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
+function Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
     Str8 result = str8_of_size(arena, a.size + b.size);
     mem_copy(result.data, a.data, a.size);
     mem_copy(result.data + a.size, b.data, b.size);
@@ -58,43 +58,44 @@ Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
     return result;
 }
 
-Str16 str16_concat(Arena* arena, Str16 a, Str16 b) {
+function Str16 str16_concat(Arena* arena, Str16 a, Str16 b) {
     Str16 result = str16_of_size(arena, a.size + b.size);
     mem_copy(result.data, a.data, a.size);
     mem_copy(result.data + a.size, b.data, b.size);
     result.data[result.size] = 0;
     return result;
 }
-void str8_to_lower(Str8 text) {
+
+function void str8_to_lower(Str8 text) {
     for (u64 i = 0; i < text.size; i++) {
         text.data[i] = str8_char_to_lower(text.data[i]);
     }
 }
 
-void str8_to_upper(Str8 text) {
+function void str8_to_upper(Str8 text) {
     for (u64 i = 0; i < text.size; i++) {
         text.data[i] = str8_char_to_upper(text.data[i]);
     }
 }
 
-u8 str8_equal(Str8 a, Str8 b) {
+function u8 str8_equal(Str8 a, Str8 b) {
     return (a.size == b.size) ? mem_match(a.data, b.data, a.size) : 0;
 }
 
-force_inline static u64 str16_get_length_from_cstr(u16* data) {
+internal force_inline u64 str16_get_length_from_cstr(u16* data) {
     u64 i = 0;
     for(i; data[i] != 0; i++) {}
     return(i);
 }
 
-Str16 str16_from_cstr(u16* str) {
+function Str16 str16_from_cstr(u16* str) {
     Str16 text;
     text.data = str;
     text.size = str16_get_length_from_cstr(str);
     return text;
 }
 
-u8 str16_equal(Str16 a, Str16 b) {
+function u8 str16_equal(Str16 a, Str16 b) {
     return (a.size == b.size) ? mem_match(a.data, b.data, a.size * sizeof(u16)) : 0;
 }
 
@@ -105,7 +106,7 @@ const global u8 utf8_class[32] = {
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,2,2,2,2,3,3,4,5,
 };
 
-UnicodeDecode utf8_decode(u8* str, u64 max) {
+function UnicodeDecode utf8_decode(u8* str, u64 max) {
     UnicodeDecode result = { 1, UINT32_MAX };
     u8 byte = str[0];
     u8 byte_class = utf8_class[byte >> 3];
@@ -150,7 +151,7 @@ UnicodeDecode utf8_decode(u8* str, u64 max) {
     return result;
 }
 
-UnicodeDecode utf16_decode(u16* str, u64 max) {
+function UnicodeDecode utf16_decode(u16* str, u64 max) {
     UnicodeDecode result = { 1, UINT32_MAX };
     result.codepoint = str[0];
     result.inc = 1;
@@ -161,7 +162,7 @@ UnicodeDecode utf16_decode(u16* str, u64 max) {
     return result;
 }
 
-u32 utf8_encode(u8* str, u32 codepoint) {
+function u32 utf8_encode(u8* str, u32 codepoint) {
     u32 inc = 0;
     if (codepoint <= 0x7F) {
         str[0] = (u8)codepoint;
@@ -192,7 +193,7 @@ u32 utf8_encode(u8* str, u32 codepoint) {
     return inc;
 }
 
-u32 utf16_encode(u16* str, u32 codepoint) {
+function u32 utf16_encode(u16* str, u32 codepoint) {
     u32 inc = 1;
     if (codepoint == UINT32_MAX)
         str[0] = (u16)'?';
@@ -207,14 +208,14 @@ u32 utf16_encode(u16* str, u32 codepoint) {
     return inc;
 }
 
-u32 utf8_size(u32 cp) {
+function u32 utf8_size(u32 cp) {
     if (cp <= 0x7F)       return 1;
     if (cp <= 0x7FF)      return 2;
     if (cp <= 0xFFFF)     return 3;
     return 4;
 }
 
-u32 utf16_size(u32 cp) {
+function u32 utf16_size(u32 cp) {
     if (cp > 0x10FFFF) return 0;
     if (cp >= 0xD800 && cp <= 0xDFFF) return 0;
     if (cp <= 0xFFFF) return 1;
@@ -222,7 +223,7 @@ u32 utf16_size(u32 cp) {
 }
 
 
-Str8 str8_from_16(Arena* arena, Str16 text) {
+function Str8 str8_from_16(Arena* arena, Str16 text) {
     Str8 result = { 0 };
 
     u16* ptr = text.data;
@@ -251,7 +252,7 @@ Str8 str8_from_16(Arena* arena, Str16 text) {
     return result;
 }
 
-Str16 str16_from_8(Arena* arena, Str8 text) {
+function Str16 str16_from_8(Arena* arena, Str8 text) {
     Str16 result = { 0 };
     if (!text.size) return result;
 
@@ -282,7 +283,7 @@ Str16 str16_from_8(Arena* arena, Str8 text) {
     return result;
 }
 
-Str8 str8_from_32(Arena* arena, Str32 text) {
+function Str8 str8_from_32(Arena* arena, Str32 text) {
     Str8 result = { 0 };
     if (!text.size) return result;
 
@@ -307,7 +308,7 @@ Str8 str8_from_32(Arena* arena, Str32 text) {
     return result;
 }
 
-Str32 str32_from_8(Arena* arena, Str8 text) {
+function Str32 str32_from_8(Arena* arena, Str8 text) {
     Str32 result = { 0 };
     if (!text.size) return result;
 
@@ -337,14 +338,14 @@ Str32 str32_from_8(Arena* arena, Str8 text) {
     return result;
 }
 
-Str8 str8_copy(Arena* arena, Str8 text) {
+function Str8 str8_copy(Arena* arena, Str8 text) {
     Str8 string = str8_of_size(arena, text.size);
     mem_copy_array(string.data, text.data, text.size);
     string.data[string.size] = 0;
     return string;
 }
 
-Str16 str16_copy(Arena* arena, Str16 text) {
+function Str16 str16_copy(Arena* arena, Str16 text) {
     Str16 string = str16_of_size(arena, text.size);
     mem_copy_array(string.data, text.data, text.size);
     string.data[string.size] = 0;

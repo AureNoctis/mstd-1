@@ -56,7 +56,7 @@ global OS_Win32_State os_win32_state;
     os_win32_state.system_info.logical_processor_count = sysinfo.dwNumberOfProcessors;
     os_win32_state.system_info.allocation_granularity = sysinfo.dwAllocationGranularity;
 
-    os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, 0);
+    os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, ARENA_FLAG_NONE);
     u8 cwd[1024];
     debug_validate(_getcwd((char*)cwd, sizeof(cwd)));
     os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8(cwd));
@@ -271,7 +271,7 @@ struct OS_Win32_FileWatcher {
 OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_directory) {
     Str16 u16_path = str16_from_8(arena, path);
 
-    HANDLE dir = CreateFileW(u16_path.data, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+    HANDLE dir = CreateFileW((LPCWSTR)u16_path.data, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                              NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
     if (dir == INVALID_HANDLE_VALUE)
@@ -308,7 +308,7 @@ u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileE
             for (;;) {
                 u32 name_len_chars = notify->FileNameLength / sizeof(WCHAR);
                 Str16 u16_file = {0};
-                u16_file.data = notify->FileName;
+                u16_file.data = (u16*)notify->FileName;
                 u16_file.size = name_len_chars;
 
                 if (name_len_chars > 0) {

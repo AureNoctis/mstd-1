@@ -1,6 +1,6 @@
 #include <math.h>
 
-Timer timer_init() {
+function Timer timer_init() {
     Timer timer = {0};
     timer.ticks = os_get_ticks();
     timer.delta = 16666.6f;
@@ -10,7 +10,7 @@ Timer timer_init() {
     return timer;
 }
 
-void timer_update(Timer* timer) {
+function void timer_update(Timer* timer) {
     u64 current_ticks = os_get_ticks();
 
     u64 elapsed_ticks = (current_ticks > timer->ticks) ? (current_ticks - timer->ticks) : 0;

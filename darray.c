@@ -1,4 +1,4 @@
-force_inline static void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index) {
+function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index) {
     u8** chunks = (u8**)(header + 1);
 
     u64 i_shift = index >> meta.shift;

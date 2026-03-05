@@ -1,4 +1,4 @@
-Arena* arena_alloc(u64 reserve_size, ArenaFlag flags) {
+function Arena* arena_alloc(u64 reserve_size, ArenaFlag flags) {
     u64 page_size = (flags & ARENA_FLAG_COMMIT_LARGE_PAGES)
         ? os_get_system_info()->large_page_size
         : os_get_system_info()->page_size;
@@ -21,11 +21,11 @@ Arena* arena_alloc(u64 reserve_size, ArenaFlag flags) {
     return arena;
 }
 
-void arena_release(Arena* arena) {
+function void arena_release(Arena* arena) {
     os_release(arena, arena->reserved);
 }
 
-void* arena_push(Arena* arena, u64 size, u64 align) {
+function void* arena_push(Arena* arena, u64 size, u64 align) {
     u64 begin_pos = align_up_pow2(arena->cursor, align);
     u64 end_pos = begin_pos + size;
 
@@ -53,12 +53,12 @@ ArenaTemp arena_temp_begin(Arena* arena) {
     return temp;
 }
 
-void arena_temp_end(ArenaTemp temp) {
+function void arena_temp_end(ArenaTemp temp) {
     temp.arena->cursor = temp.cursor;
     temp.arena = NULL;
 }
 
-void arena_reset(Arena* arena) {
+function void arena_reset(Arena* arena) {
     arena->cursor = ARENA_HEADER_SIZE;
 }
 
@@ -67,7 +67,7 @@ void arena_reset(Arena* arena) {
 global thread_var Arena* __arena_scratch[ARENA_SCRATCH_POOL_COUNT] = { 0 };
 global thread_var u8     __arena_scratch_available_mask = (1u << ARENA_SCRATCH_POOL_COUNT) - 1;
 
-ArenaScratch arena_scratch_begin() {
+function ArenaScratch arena_scratch_begin() {
     ArenaScratch scratch = { 0 };
     i32 index = u32_lsb((u32)__arena_scratch_available_mask);
 
@@ -83,7 +83,7 @@ ArenaScratch arena_scratch_begin() {
     return scratch;
 }
 
-void arena_scratch_end(ArenaScratch scratch) {
+function void arena_scratch_end(ArenaScratch scratch) {
     if (scratch.arena != 0)
         __arena_scratch_available_mask |= (u8)(1u << scratch.index);
 }

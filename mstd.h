@@ -1,8 +1,6 @@
 #if !defined(MSTD_H)
 #define MSTD_H
 
-#include <stdint.h>
-
 ////////////////////////////////
 // Macros: Compilers
 
@@ -88,6 +86,16 @@
 #define LANG_C 1
 #endif
 
+#ifdef LANG_CXX
+#include <cstdint>
+#define API extern "C"
+#elif LANG_C
+#define API extern
+#include <stdint.h>
+#else
+#error "API macro is not defined for this language."
+#endif
+
 #if COMPILER_MSVC
     #include <intrin.h>
 #endif
@@ -100,8 +108,8 @@
     int memcmp(const void* buffer1, const void* buffer2, size_t count);
     #pragma intrinsic(memcmp, memmove)
     #define trap()                    __debugbreak()
-    #define mem_set(p, byte, size)    __stosb((u8*)(p), (u8)(byte), (size))
-    #define mem_copy(dest, src, size) __movsb((u8*)(dest), (const u8*)(src), (size))
+    #define mem_set(p, byte, size)    __stosb((PBYTE)(p), (BYTE)(byte), (size))
+    #define mem_copy(dest, src, size) __movsb((PBYTE)(dest), (PBYTE)(src), (size))
     #define mem_move(dest, src, size) memmove((dest), (src), (size))
     #define mem_match(a, b, size)     (memcmp((a), (b), (size)) == 0)
 #elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
@@ -189,6 +197,8 @@
 #define concat(a,b) _concat(a,b)
 
 #define global static
+#define function
+#define internal static
 
 #define is_pow2(x) ((x) != 0 && (((x) & ((x) - 1)) == 0))
 #define is_pow2_or_zero(x) (((x) & ((x) - 1)) == 0)
@@ -231,10 +241,10 @@ typedef uintptr_t uptr;
 
 #if COMPILER_MSVC
 
-static i8 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? (i8)where : -1; }
-static i8 u64_msb(u64 mask) { unsigned long where; return _BitScanReverse64(&where, mask) ? (i8)where : -1; }
-static i8 u32_lsb(u32 mask) { unsigned long where; return _BitScanForward(&where, mask) ? (i8)where : -1; }
-static i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&where, mask) ? (i8)where : -1; }
+API function i8 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? (i8)where : -1; }
+API function i8 u64_msb(u64 mask) { unsigned long where; return _BitScanReverse64(&where, mask) ? (i8)where : -1; }
+API function i8 u32_lsb(u32 mask) { unsigned long where; return _BitScanForward(&where, mask) ? (i8)where : -1; }
+API function i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&where, mask) ? (i8)where : -1; }
 #define u32_count_set_bits __popcnt
 #define u64_count_set_bits __popcnt64
 
@@ -389,24 +399,24 @@ struct ArenaTemp {
 
 typedef ArenaTemp ArenaScratch;
 
-Arena* arena_alloc(u64 reserve_size, ArenaFlag flags);
+API function Arena* arena_alloc(u64 reserve_size, ArenaFlag flags);
 
-void* arena_push(Arena* arena, u64 size, u64 align);
+API function void* arena_push(Arena* arena, u64 size, u64 align);
 #define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), align_of(T))
 #define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), align_of(T))
 
-void arena_reset(Arena* arena);
-void arena_release(Arena *arena);
+API function void arena_reset(Arena* arena);
+API function void arena_release(Arena *arena);
 
 /// @brief This function can have 0 passed as param which causes it to create a TLS scratch arena.
 ArenaTemp arena_temp_begin(Arena* arena);
-void arena_temp_end(ArenaTemp temp);
+API function void arena_temp_end(ArenaTemp temp);
 
 /// @brief defines a loop which will run once. use { //code  } just after it.
 #define arena_temp_scope(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
 
 ArenaScratch arena_scratch_begin();
-void arena_scratch_end(ArenaScratch scratch);
+API function void arena_scratch_end(ArenaScratch scratch);
 
 /// @brief defines a loop which will run once. use { //code  } just after it.
 /// @param scratch - name you pass should be used in the scope
@@ -448,41 +458,20 @@ enum CharType {
     CHAR_TYPE_DIGIT16 = (1 << 4), // 0x10
 };
 
-align_to(64) global const u8 ASCII_LUT[256] = {
-    // White-space: Tab, LF, VT, FF, CR, Space
-    [0x09] = CHAR_TYPE_SPACE, [0x0A] = CHAR_TYPE_SPACE, [0x0B] = CHAR_TYPE_SPACE,
-    [0x0C] = CHAR_TYPE_SPACE, [0x0D] = CHAR_TYPE_SPACE, [0x20] = CHAR_TYPE_SPACE,
-
-    // Digits: 0-9 (Decimal + Hex)
-    ['0'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['1'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['2'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['3'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['4'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['5'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['6'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['7'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['8'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['9'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-
-    // Uppercase Hex: A-F
-    ['A'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['B'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
-    ['C'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['D'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
-    ['E'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['F'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
-
-    // Uppercase Non-Hex: G-Z
-    ['G'] = CHAR_TYPE_UPPER, ['H'] = CHAR_TYPE_UPPER, ['I'] = CHAR_TYPE_UPPER, ['J'] = CHAR_TYPE_UPPER,
-    ['K'] = CHAR_TYPE_UPPER, ['L'] = CHAR_TYPE_UPPER, ['M'] = CHAR_TYPE_UPPER, ['N'] = CHAR_TYPE_UPPER,
-    ['O'] = CHAR_TYPE_UPPER, ['P'] = CHAR_TYPE_UPPER, ['Q'] = CHAR_TYPE_UPPER, ['R'] = CHAR_TYPE_UPPER,
-    ['S'] = CHAR_TYPE_UPPER, ['T'] = CHAR_TYPE_UPPER, ['U'] = CHAR_TYPE_UPPER, ['V'] = CHAR_TYPE_UPPER,
-    ['W'] = CHAR_TYPE_UPPER, ['X'] = CHAR_TYPE_UPPER, ['Y'] = CHAR_TYPE_UPPER, ['Z'] = CHAR_TYPE_UPPER,
-
-    // Lowercase Hex: a-f
-    ['a'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['b'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
-    ['c'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['d'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
-    ['e'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['f'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
-
-    // Lowercase Non-Hex: g-z
-    ['g'] = CHAR_TYPE_LOWER, ['h'] = CHAR_TYPE_LOWER, ['i'] = CHAR_TYPE_LOWER, ['j'] = CHAR_TYPE_LOWER,
-    ['k'] = CHAR_TYPE_LOWER, ['l'] = CHAR_TYPE_LOWER, ['m'] = CHAR_TYPE_LOWER, ['n'] = CHAR_TYPE_LOWER,
-    ['o'] = CHAR_TYPE_LOWER, ['p'] = CHAR_TYPE_LOWER, ['q'] = CHAR_TYPE_LOWER, ['r'] = CHAR_TYPE_LOWER,
-    ['s'] = CHAR_TYPE_LOWER, ['t'] = CHAR_TYPE_LOWER, ['u'] = CHAR_TYPE_LOWER, ['v'] = CHAR_TYPE_LOWER,
-    ['w'] = CHAR_TYPE_LOWER, ['x'] = CHAR_TYPE_LOWER, ['y'] = CHAR_TYPE_LOWER, ['z'] = CHAR_TYPE_LOWER,
+align_to(64) global u8 ASCII_LUT[256] = {
+    /* 0x00 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, 0, 0,
+    /* 0x10 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x20 */ CHAR_TYPE_SPACE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x30 */ (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), 0, 0, 0, 0, 0, 0,
+    /* 0x40 */ 0, (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER,
+    /* 0x50 */ CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, 0, 0, 0, 0, 0,
+    /* 0x60 */ 0, (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER,
+    /* 0x70 */ CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, 0, 0, 0, 0, 0,
+    /* 0x80 - 0xFF: Padding remaining 128 bytes with zeros */
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
 
 #define str8_char_is_space(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_SPACE)
@@ -496,43 +485,38 @@ align_to(64) global const u8 ASCII_LUT[256] = {
 #define str8_char_to_upper(c)        ((u8)((u8)(c) ^ (str8_char_is_lower(c) ? 0x20 : 0)))
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
-Str8 str8_from_cstr(u8* str);
+API function Str8 str8_from_cstr(u8* str);
 
-#define str8(literal) _Generic((literal) + 0,                \
-    char*:              str8_from_cstr((u8*)literal),        \
-    const char*:        str8_from_cstr((u8*)literal),        \
-    u8*:                str8_from_cstr((u8*)literal),        \
-    const u8*:          str8_from_cstr((u8*)literal)         \
-)
+#define str8(literal)  str8_from_cstr((u8*)literal)
 
-Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
+internal function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
 #define str8_from_fmt(arena, fmt, ...) _str8_from_fmt(arena, (u8*)fmt, ##__VA_ARGS__)
 
-Str8 str8_of_size(Arena* arena, u64 size);
-Str16 str16_of_size(Arena* arena, u64 size);
+API function Str8 str8_of_size(Arena* arena, u64 size);
+API function Str16 str16_of_size(Arena* arena, u64 size);
 
-Str8 str8_concat(Arena* arena, Str8 a, Str8 b);
-Str16 str16_concat(Arena* arena, Str16 a, Str16 b);
+API function Str8 str8_concat(Arena* arena, Str8 a, Str8 b);
+API function Str16 str16_concat(Arena* arena, Str16 a, Str16 b);
 
-UnicodeDecode utf8_decode(u8* str, u64 max);
-UnicodeDecode utf16_decode(u16* str, u64 max);
-u32 utf8_encode(u8* str, u32 codepoint);
-u32 utf16_encode(u16* str, u32 codepoint);
-u32 utf8_size(u32 cp);
-u32 utf16_size(u32 cp);
+API function UnicodeDecode utf8_decode(u8* str, u64 max);
+API function UnicodeDecode utf16_decode(u16* str, u64 max);
+API function u32 utf8_encode(u8* str, u32 codepoint);
+API function u32 utf16_encode(u16* str, u32 codepoint);
+API function u32 utf8_size(u32 cp);
+API function u32 utf16_size(u32 cp);
 
-void str8_to_lower(Str8 text);
-void str8_to_upper(Str8 text);
-u8 str8_equal(Str8 a, Str8 b);
-Str16 str16_from_cstr(u16* str);
+API function void str8_to_lower(Str8 text);
+API function void str8_to_upper(Str8 text);
+API function u8 str8_equal(Str8 a, Str8 b);
+API function Str16 str16_from_cstr(u16* str);
 #define str16(literal) str16_from_cstr((u16*)literal)
-u8 str16_equal(Str16 a, Str16 b);
-Str8 str8_from_16(Arena* arena, Str16 text);
-Str16 str16_from_8(Arena* arena, Str8 text);
-Str8 str8_from_32(Arena* arena, Str32 text);
-Str32 str32_from_8(Arena* arena, Str8 text);
-Str8 str8_copy(Arena* arena, Str8 text);
-Str16 str16_copy(Arena* arena, Str16 text);
+API function u8 str16_equal(Str16 a, Str16 b);
+API function Str8 str8_from_16(Arena* arena, Str16 text);
+API function Str16 str16_from_8(Arena* arena, Str8 text);
+API function Str8 str8_from_32(Arena* arena, Str32 text);
+API function Str32 str32_from_8(Arena* arena, Str8 text);
+API function Str8 str8_copy(Arena* arena, Str8 text);
+API function Str16 str16_copy(Arena* arena, Str16 text);
 
 ////////////////////////////////
 // Linked List
@@ -635,26 +619,26 @@ struct OS_Handle {
     u64 val[1];
 };
 
-void os_init_state();
-OS_SystemInfo* os_get_system_info();
-OS_ProcessInfo* os_get_process_info();
-u64 os_get_resolution_us();
-f64 os_get_inverse_ticks_per_us();
-u64 os_get_ticks();
+API function void os_init_state();
+API function OS_SystemInfo* os_get_system_info();
+API function OS_ProcessInfo* os_get_process_info();
+API function u64 os_get_resolution_us();
+API function f64 os_get_inverse_ticks_per_us();
+API function u64 os_get_ticks();
 #define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
 
-OS_Handle os_load_lib(u8* name);
-void* os_load_symbol(OS_Handle lib, u8* name);
+API function OS_Handle os_load_lib(u8* name);
+API function void* os_load_symbol(OS_Handle lib, u8* name);
 
-void os_attach_console_if_exists();
+API function void os_attach_console_if_exists();
 
 ////////////////////////////////
 // OS: Memory Helpers
 
-void* os_reserve(u64 size, u32 large_pages);
-u8 os_commit(void* ptr, u64 size, u32 large_pages);
-void os_decommit(void* ptr, u64 size);
-void os_release(void* ptr, u64 size);
+API function void* os_reserve(u64 size, u32 large_pages);
+API function u8 os_commit(void* ptr, u64 size, u32 large_pages);
+API function void os_decommit(void* ptr, u64 size);
+API function void os_release(void* ptr, u64 size);
 
 ////////////////////////////////
 // OS: FileSystem Helpers
@@ -682,25 +666,25 @@ enum OS_FileEventType {
 
 typedef void OS_FileWatcher;
 
-OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
-void os_file_close(OS_Handle handle);
-u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
+API function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
+API function void os_file_close(OS_Handle handle);
+API function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
 #define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
-u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
+API function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
 #define os_file_write_struct(handle, offset, struct_ptr) os_file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
 #define os_file_write_string(handle, str) os_file_write((handle), 0, str.size, str.data)
 
 
-void os_file_delete(Str8 path);
-u64 os_file_get_size(OS_Handle handle);
-void os_file_copy(Str8 src, Str8 dest);
-void os_file_move(Str8 src, Str8 dest);
-u32 os_file_path_exists(Str8 path);
-u32 os_file_directory_exists(Str8 path);
+API function void os_file_delete(Str8 path);
+API function u64 os_file_get_size(OS_Handle handle);
+API function void os_file_copy(Str8 src, Str8 dest);
+API function void os_file_move(Str8 src, Str8 dest);
+API function u32 os_file_path_exists(Str8 path);
+API function u32 os_file_directory_exists(Str8 path);
 
-OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_directory);
-u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file);
-void os_file_watcher_destroy(OS_FileWatcher* watcher);
+API function OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_directory);
+API function u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file);
+API function void os_file_watcher_destroy(OS_FileWatcher* watcher);
 
 ////////////////////////////////
 // OS: Timer
@@ -731,5 +715,5 @@ struct DarrayMetaData {
     u64 el_size;
 };
 
-force_inline static void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index);
+API function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index);
 #endif // MSTD_H
