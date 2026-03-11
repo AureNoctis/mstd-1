@@ -86,7 +86,7 @@
 #define LANG_C 1
 #endif
 
-#ifdef LANG_CXX
+#if LANG_CXX
 #include <cstdint>
 #define API extern "C"
 #elif LANG_C
