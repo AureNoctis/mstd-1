@@ -38,14 +38,14 @@ force_inline u64 u64_rotl(u64 x, i8 s) {
     const u64 mask = 63;
     u64 n = (u64)s & mask;
     if (n == 0) return x;
-    return (x << n) | (x >> ((-n) & mask));
+    return (x << n) | (x >> ((-(i64)n) & mask));
 }
 
 force_inline u64 u64_rotr(u64 x, i8 s) {
     const u64 mask = 63;
     u64 n = (u64)s & mask;
     if (n == 0) return x;
-    return (x >> n) | (x << ((-n) & mask));
+    return (x >> n) | (x << ((-(i64)n) & mask));
 }
 
 force_inline i8 u64_popcount(u64 x) {
