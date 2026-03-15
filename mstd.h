@@ -239,6 +239,11 @@ typedef uintptr_t uptr;
 
 #define enum_t(enum, storage_data_type) storage_data_type
 
+force_inline u64 u64_rotl(u64 x, i8 s);
+force_inline u64 u64_rotr(u64 x, i8 s);
+force_inline i8 u64_popcount(u64 x);
+force_inline i8 u64_countl_zero(u64 x);
+
 #if COMPILER_MSVC
 
 API function i8 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? (i8)where : -1; }
@@ -325,45 +330,6 @@ API function i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward6
 #define bit_61 (1ULL << 61)
 #define bit_62 (1ULL << 62)
 #define bit_63 (1ULL << 63)
-
-////////////////////////////////
-// Types: Vecs
-
-#define VEC2_GEN(T) \
-    typedef union T##vec2 { \
-        struct { T x, y; }; \
-        struct { T u, v; }; \
-        T elements[2]; \
-    } T##vec2
-
-#define VEC3_GEN(T) \
-    typedef union T##vec3 { \
-        struct { T x, y, z; }; \
-        struct { T r, g, b; }; \
-        T elements[3]; \
-    } T##vec3
-
-#define VEC4_GEN(T) \
-    typedef union T##vec4 { \
-        struct { T x, y, z, w; }; \
-        struct { T r, g, b, a; }; \
-        T elements[4]; \
-    } T##vec4
-
-#define VEC_GEN(T) VEC2_GEN(T); VEC3_GEN(T); VEC4_GEN(T);
-
-VEC_GEN(u8);
-VEC_GEN(u16);
-VEC_GEN(u32);
-VEC_GEN(u64);
-
-VEC_GEN(i8);
-VEC_GEN(i16);
-VEC_GEN(i32);
-VEC_GEN(i64);
-
-VEC_GEN(f32);
-VEC_GEN(f64);
 
 ////////////////////////////////
 // Types: Arena
@@ -708,12 +674,13 @@ struct DArrayHeader {
     u64 size;
 };
 
-typedef struct DarrayMetaData DarrayMetaData;
-struct DarrayMetaData {
+typedef struct DArrayMetaData DArrayMetaData;
+struct DArrayMetaData {
     u8 shift;
     u8 chunks_n;
     u64 el_size;
 };
 
-API function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index);
+API function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
+
 #endif // MSTD_H

@@ -34,6 +34,50 @@ function void timer_update(Timer* timer) {
     timer->very_smooth_delta += (timer->delta - timer->very_smooth_delta) * clamp_bottom(f, 1.0f / 128.0f);
 }
 
+force_inline u64 u64_rotl(u64 x, i8 s) {
+    const u64 mask = 63;
+    u64 n = (u64)s & mask;
+    if (n == 0) return x;
+    return (x << n) | (x >> ((-n) & mask));
+}
+
+force_inline u64 u64_rotr(u64 x, i8 s) {
+    const u64 mask = 63;
+    u64 n = (u64)s & mask;
+    if (n == 0) return x;
+    return (x >> n) | (x << ((-n) & mask));
+}
+
+force_inline i8 u64_popcount(u64 x) {
+    #if defined(COMPILER_MSVC)
+        return (i8)__popcnt64(x);
+    #else
+        return (i8)__builtin_popcountll(x);
+    #endif
+}
+
+force_inline i8 u64_countl_zero(u64 x) {
+    if (x == 0) return 64;
+    #if defined(COMPILER_MSVC)
+        unsigned long leading_zero = 0;
+        if (_BitScanReverse64(&leading_zero, x)) return (i8)(63 - leading_zero);
+        return 64;
+    #else
+        return (i8)__builtin_clzll(x);
+    #endif
+}
+
+force_inline i8 u64_countr_zero(u64 x) {
+    if (x == 0) return 64;
+    #if defined(COMPILER_MSVC)
+        unsigned long trailing_zero = 0;
+        _BitScanForward64(&trailing_zero, x);
+        return (i8)trailing_zero;
+    #else
+        return (i8)__builtin_ctzll(x);
+    #endif
+}
+
 function Arena* arena_alloc(u64 reserve_size, ArenaFlag flags) {
     u64 page_size = (flags & ARENA_FLAG_COMMIT_LARGE_PAGES)
         ? os_get_system_info()->large_page_size
@@ -477,7 +521,7 @@ function Str16 str16_copy(Arena* arena, Str16 text) {
     return string;
 }
 
-function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DarrayMetaData meta, u64 index) {
+function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index) {
     u8** chunks = (u8**)(header + 1);
 
     u64 i_shift = index >> meta.shift;
@@ -487,7 +531,7 @@ function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, Da
     if (arena && chunks_i < meta.chunks_n) {
         for (i8 i = 0; i <= chunks_i; ++i) {
             if (chunks[i] == 0) {
-                u64 tier_size = (u64)1 << (i + meta.shift);
+                u64 tier_size = 1ULL << clamp_top((i + meta.shift), 63);
                 chunks[i] = (u8*)arena_push(arena, tier_size * meta.el_size, 8);
             }
         }
