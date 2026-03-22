@@ -577,8 +577,8 @@ API function void os_file_move(Str8 src, Str8 dest);
 API function u32 os_file_path_exists(Str8 path);
 API function u32 os_file_directory_exists(Str8 path);
 
-API function OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_directory);
-API function u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file);
+API function OS_FileWatcher os_file_watcher_create(Str8 path, u32 watch_sub_directory);
+API function OS_FileEvent* os_file_watcher_poll_events(OS_FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
 API function void os_file_watcher_destroy(OS_FileWatcher* watcher);
 
 ////////////////////////////////

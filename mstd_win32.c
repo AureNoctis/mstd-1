@@ -217,113 +217,153 @@ u64 os_file_get_size(OS_Handle handle) {
 }
 
 void os_file_delete(Str8 path) {
-    ArenaScratch scratch = arena_scratch_begin();
-    Str16 path_w32 = str16_from_8(scratch.arena, path);
-    DeleteFileW((WCHAR*)path_w32.data);
-    arena_scratch_end(scratch);
+    int max_retries = 5;
+    int sleep_ms = 1;
+
+    for (int i = 0; i < max_retries; i++) {
+        if (DeleteFileA((char*)path.data)) {
+            return;
+        }
+
+        DWORD err = GetLastError();
+        if (err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION) {
+            Sleep(sleep_ms);
+            sleep_ms *= 2;
+        }
+        else
+            break;
+    }
 }
 
-void os_file_copy(Str8 src, Str8 dest) {
-    ArenaScratch scratch = arena_scratch_begin();
-    Str16 src_w32 = str16_from_8(scratch.arena, dest);
-    Str16 dest_w32 = str16_from_8(scratch.arena, src);
-    CopyFileW((WCHAR*)src_w32.data, (WCHAR*)dest_w32.data, 0);
-    arena_scratch_end(scratch);
+u32 os_file_copy(Str8 src, Str8 dest) {
+    int max_retries = 5;
+    int sleep_ms = 1;
+
+    for (int i = 0; i < max_retries; i++) {
+        if (CopyFileExA((char*)src.data, (char*)dest.data, NULL, NULL, &FALSE, COPY_FILE_NO_BUFFERING))
+            return 1;
+
+        DWORD err = GetLastError();
+        if (err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION) {
+            Sleep(sleep_ms);
+            sleep_ms *= 2;
+        }
+        else
+            break;
+    }
+
+    return 0;
 }
 
 void os_file_move(Str8 src, Str8 dest) {
-    ArenaScratch scratch = arena_scratch_begin();
-    Str16 src_w32 = str16_from_8(scratch.arena, dest);
-    Str16 dest_w32 = str16_from_8(scratch.arena, src);
-    MoveFileW((WCHAR*)src_w32.data, (WCHAR*)dest_w32.data);
-    arena_scratch_end(scratch);
+    int max_retries = 5;
+    int sleep_ms = 1;
+
+    for (int i = 0; i < max_retries; i++) {
+        if (MoveFileExA((char*)src.data, (char*)dest.data, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED | MOVEFILE_WRITE_THROUGH)) {
+            return;
+        }
+
+        DWORD err = GetLastError();
+        if (err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION) {
+            Sleep(sleep_ms);
+            sleep_ms *= 2;
+        }
+        else
+            break;
+    }
 }
 
 u32 os_file_path_exists(Str8 path) {
-    ArenaScratch scratch = arena_scratch_begin();
-    Str16 path_w32 = str16_from_8(scratch.arena, path);
-    DWORD attributes = GetFileAttributesW((WCHAR*)path_w32.data);
+    DWORD attributes = GetFileAttributesA((char*)path.data);
     u32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && !!(~attributes & FILE_ATTRIBUTE_DIRECTORY);
-    arena_scratch_end(scratch);
     return exists;
 }
 
 u32 os_file_directory_exists(Str8 path) {
-    ArenaScratch scratch = arena_scratch_begin();
-    Str16 path_w32 = str16_from_8(scratch.arena, path);
-    DWORD attributes = GetFileAttributesW((WCHAR*)path_w32.data);
+    DWORD attributes = GetFileAttributesA((char*)path.data);
     u32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
-    arena_scratch_end(scratch);
     return exists;
 }
 
 typedef struct OS_Win32_FileWatcher OS_Win32_FileWatcher;
 struct OS_Win32_FileWatcher {
-    Arena* arena;
     HANDLE dir_handle;
     HANDLE iocp;
-    u8 notification_buffer[KB(4)];
+    u8 notification_buffer[KB(8)];
     u32 scan_sub_tree;
     OVERLAPPED overlapped;
 };
 
-OS_FileWatcher* os_file_watcher_create(Arena* arena, Str8 path, u32 watch_sub_directory) {
-    Str16 u16_path = str16_from_8(arena, path);
+function OS_FileWatcher os_file_watcher_create(Str8 path, u32 watch_sub_directory) {
+    ArenaScratch sch = arena_scratch_begin();
+    Str16 u16_path = str16_from_8(sch.arena, path);
 
     HANDLE dir = CreateFileW((LPCWSTR)u16_path.data, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                             NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+    NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+
+    OS_Win32_FileWatcher watcher = {0};
 
     if (dir == INVALID_HANDLE_VALUE)
-        return NULL;
+        return(watcher);
 
-    OS_Win32_FileWatcher* watcher = arena_push_struct(arena, OS_Win32_FileWatcher);
-    mem_zero_struct(watcher);
-    watcher->arena = arena;
-    watcher->scan_sub_tree = watch_sub_directory;
-    watcher->dir_handle = dir;
-    watcher->iocp = CreateIoCompletionPort(watcher->dir_handle, NULL, 0, 1);
+    watcher.scan_sub_tree = watch_sub_directory;
+    watcher.dir_handle = dir;
+    watcher.iocp = CreateIoCompletionPort(watcher.dir_handle, NULL, 0, 1);
 
-    mem_zero_struct(&watcher->overlapped);
-    debug_trap_code_if(ReadDirectoryChangesW(watcher->dir_handle,
-                                         watcher->notification_buffer,
-                                         sizeof(watcher->notification_buffer),
-                                         watcher->scan_sub_tree,
-                                         FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME,
-                                         NULL, &watcher->overlapped, NULL), ==, 0);
+    ReadDirectoryChangesW(
+        watcher.dir_handle,
+        watcher.notification_buffer,
+        sizeof(watcher.notification_buffer),
+        watcher.scan_sub_tree,
+        FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME,
+        NULL,
+        &watcher.overlapped,
+        NULL
+    );
+
+    arena_scratch_end(sch);
     return(watcher);
 }
 
-u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileEventType* type, Str8* file) {
-    OS_Win32_FileWatcher* win32_watcher = (OS_Win32_FileWatcher*)watcher;
+
+function OS_FileEvent* os_file_watcher_poll_events(OS_FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count) {
     DWORD bytes = 0;
     ULONG_PTR key = 0;
     LPOVERLAPPED p_overlapped = NULL;
 
-    if (GetQueuedCompletionStatus(win32_watcher->iocp, &bytes, &key, &p_overlapped, (DWORD)timeout_ms)) {
+    OS_FileEvent* result_array = NULL;
+    u32 count = 0;
 
-        if (p_overlapped == &win32_watcher->overlapped && bytes > 0) {
-            FILE_NOTIFY_INFORMATION* notify = (FILE_NOTIFY_INFORMATION*)win32_watcher->notification_buffer;
+    if (GetQueuedCompletionStatus(watcher->iocp, &bytes, &key, &p_overlapped, (DWORD)timeout_ms)) {
+        if (p_overlapped == &watcher->overlapped && bytes > 0) {
 
+            FILE_NOTIFY_INFORMATION* notify = (FILE_NOTIFY_INFORMATION*)watcher->notification_buffer;
             for (;;) {
+                count++;
+                if (notify->NextEntryOffset == 0) break;
+                notify = (FILE_NOTIFY_INFORMATION*)((u8*)notify + notify->NextEntryOffset);
+            }
+
+            result_array = arena_push_array(arena, OS_FileEvent, count);
+
+            notify = (FILE_NOTIFY_INFORMATION*)watcher->notification_buffer;
+
+            for (u32 i = 0; i < count; i++) {
                 u32 name_len_chars = notify->FileNameLength / sizeof(WCHAR);
-                Str16 u16_file = {0};
-                u16_file.data = (u16*)notify->FileName;
-                u16_file.size = name_len_chars;
+                Str16 u16_file = { (u16*)notify->FileName, name_len_chars };
 
-                if (name_len_chars > 0) {
-                     WCHAR last_char = u16_file.data[name_len_chars - 1];
-                     if (last_char == L'c' || last_char == L'h') {
-                        Str8 u8_file = str8_from_16(win32_watcher->arena, u16_file);
+                result_array[i].name = str8_from_16(arena, u16_file);
+                switch (notify->Action) {
+                case FILE_ACTION_ADDED:
+                case FILE_ACTION_RENAMED_NEW_NAME:      result_array[i].type = OS_FILE_EVENT_TYPE_ADDED; break;
 
-                        if (file)
-                             file->data = u8_file.data;
-                             file->size = u8_file.size;
+                case FILE_ACTION_REMOVED:
+                case FILE_ACTION_RENAMED_OLD_NAME:      result_array[i].type = OS_FILE_EVENT_TYPE_DELETED; break;
 
-                        if (type)
-                            *type = OS_FILE_EVENT_TYPE_MODIFIED;
+                case FILE_ACTION_MODIFIED:              result_array[i].type = OS_FILE_EVENT_TYPE_MODIFIED; break;
 
-                        goto reissue_watch;
-                     }
+                default:                                result_array[i].type = OS_FILE_EVENT_TYPE_NULL;
                 }
 
                 if (notify->NextEntryOffset == 0) break;
@@ -331,17 +371,15 @@ u32 os_file_watcher_poll_event(OS_FileWatcher* watcher, u32 timeout_ms, OS_FileE
             }
         }
 
-reissue_watch:
-        mem_zero_struct(&win32_watcher->overlapped);
-        ReadDirectoryChangesW(win32_watcher->dir_handle, win32_watcher->notification_buffer, sizeof(win32_watcher->notification_buffer),
-                              win32_watcher->scan_sub_tree, FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME, NULL,
-                              &win32_watcher->overlapped, NULL);
-
-        if (file->data != 0)
-            return 1;
+        mem_zero_struct(&watcher->overlapped);
+        ReadDirectoryChangesW(watcher->dir_handle, watcher->notification_buffer, sizeof(watcher->notification_buffer),
+                              watcher->scan_sub_tree,
+                              FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME,
+                              NULL, &watcher->overlapped, NULL);
     }
 
-    return 0;
+    *out_count = count;
+    return result_array;
 }
 
 void os_file_watcher_destroy(OS_FileWatcher* watcher) {
