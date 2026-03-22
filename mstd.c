@@ -34,7 +34,7 @@ function void timer_update(Timer* timer) {
     timer->very_smooth_delta += (timer->delta - timer->very_smooth_delta) * clamp_bottom(f, 1.0f / 128.0f);
 }
 
-force_inline u64 u64_rotl(u64 x, i8 s) {
+function force_inline u64 u64_rotl(u64 x, i8 s) {
     const u64 mask = 63;
     u64 n = (u64)s & mask;
     if (n == 0) return x;
@@ -48,52 +48,19 @@ force_inline u64 u64_rotr(u64 x, i8 s) {
     return (x >> n) | (x << ((-(i64)n) & mask));
 }
 
-force_inline i8 u64_popcount(u64 x) {
-    #if defined(COMPILER_MSVC)
-        return (i8)__popcnt64(x);
-    #else
-        return (i8)__builtin_popcountll(x);
-    #endif
-}
-
-force_inline i8 u64_countl_zero(u64 x) {
-    if (x == 0) return 64;
-    #if defined(COMPILER_MSVC)
-        unsigned long leading_zero = 0;
-        if (_BitScanReverse64(&leading_zero, x)) return (i8)(63 - leading_zero);
-        return 64;
-    #else
-        return (i8)__builtin_clzll(x);
-    #endif
-}
-
-force_inline i8 u64_countr_zero(u64 x) {
-    if (x == 0) return 64;
-    #if defined(COMPILER_MSVC)
-        unsigned long trailing_zero = 0;
-        _BitScanForward64(&trailing_zero, x);
-        return (i8)trailing_zero;
-    #else
-        return (i8)__builtin_ctzll(x);
-    #endif
-}
-
-function Arena* arena_alloc(u64 reserve_size, ArenaFlag flags) {
-    u64 page_size = (flags & ARENA_FLAG_COMMIT_LARGE_PAGES)
-        ? os_get_system_info()->large_page_size
-        : os_get_system_info()->page_size;
-
+function Arena* arena_alloc(u64 reserve_size, u32 commit_large_pages) {
+    u64 page_size = (commit_large_pages) ? os_get_system_info()->large_page_size : os_get_system_info()->page_size;
     u64 actual_reserve = align_up_pow2(reserve_size, page_size);
     u64 initial_commit = align_up_pow2(ARENA_DEFAULT_COMMIT_SIZE, page_size);
 
-    void* memory = os_reserve(actual_reserve, flags & ARENA_FLAG_COMMIT_LARGE_PAGES);
-    os_commit(memory, initial_commit, flags & ARENA_FLAG_COMMIT_LARGE_PAGES);
+    void* memory = os_mem_reserve(actual_reserve, commit_large_pages);
+    os_mem_commit(memory, initial_commit, commit_large_pages);
 
     Arena* arena = (Arena*)memory;
     arena->cursor = ARENA_HEADER_SIZE;
     arena->committed = initial_commit;
     arena->reserved = actual_reserve;
-    arena->flags = flags;
+    arena->commit_large_pages = commit_large_pages;
     arena->page_size = (u32)page_size;
 
     debug_trap_if(arena == 0);
@@ -102,7 +69,7 @@ function Arena* arena_alloc(u64 reserve_size, ArenaFlag flags) {
 }
 
 function void arena_release(Arena* arena) {
-    os_release(arena, arena->reserved);
+    os_mem_release(arena, arena->reserved);
 }
 
 function void* arena_push(Arena* arena, u64 size, u64 align) {
@@ -114,7 +81,7 @@ function void* arena_push(Arena* arena, u64 size, u64 align) {
     if (end_pos > arena->committed) {
         u64 commit_target = align_up_pow2(end_pos, (u64)arena->page_size);
         u64 commit_size = clamp_top(commit_target, arena->reserved) - arena->committed;
-        os_commit((u8*)arena + arena->committed, commit_size, arena->flags & ARENA_FLAG_COMMIT_LARGE_PAGES);
+        os_mem_commit((u8*)arena + arena->committed, commit_size, arena->commit_large_pages);
         arena->committed = commit_target;
     }
 
@@ -154,7 +121,7 @@ function ArenaScratch arena_scratch_begin() {
     if (index >= 0 && index < ARENA_SCRATCH_POOL_COUNT) {
         Arena** slot = &__arena_scratch[index];
         if (*slot == 0)
-            *slot = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, ARENA_FLAG_NONE);
+            *slot = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, 0);
         arena_reset((*slot));
         __arena_scratch_available_mask &= ~(1u << index);
         scratch.arena = *slot;

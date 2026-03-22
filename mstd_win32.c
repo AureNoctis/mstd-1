@@ -1,6 +1,5 @@
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include <direct.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <io.h>
 
@@ -56,7 +55,7 @@ global OS_Win32_State os_win32_state;
     os_win32_state.system_info.logical_processor_count = sysinfo.dwNumberOfProcessors;
     os_win32_state.system_info.allocation_granularity = sysinfo.dwAllocationGranularity;
 
-    os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, ARENA_FLAG_NONE);
+    os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, 0);
     u8 cwd[1024];
     debug_validate(_getcwd((char*)cwd, sizeof(cwd)));
     os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8(cwd));
@@ -101,22 +100,22 @@ void os_attach_console_if_exists() {
     }
 }
 
-void* os_reserve(u64 size, u32 large_pages) {
+void* os_mem_reserve(u64 size, u32 large_pages) {
     void* result = (large_pages) ? VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE)
         : VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
     return result;
 }
 
-u8 os_commit(void* ptr, u64 size, u32 large_pages) {
+u8 os_mem_commit(void* ptr, u64 size, u32 large_pages) {
     u8 result = (large_pages) ? 1 : (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != NULL);
     return result;
 }
 
-void os_decommit(void* ptr, u64 size) {
+void os_mem_decommit(void* ptr, u64 size) {
     VirtualFree(ptr, size, MEM_DECOMMIT);
 }
 
-void os_release(void* ptr, u64 size) {
+void os_mem_release(void* ptr, u64 size) {
     (void)size;
     VirtualFree(ptr, 0, MEM_RELEASE);
 }

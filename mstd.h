@@ -1,9 +1,6 @@
 #if !defined(MSTD_H)
 #define MSTD_H
 
-////////////////////////////////
-// Macros: Compilers
-
 #define COMPILER_MSVC    0
 #define COMPILER_CLANG   0
 #define COMPILER_GCC     0
@@ -21,9 +18,6 @@
 #error "Unknown Compiler"
 #endif
 
-////////////////////////////////
-// Macros: Operating Systems
-
 #define OS_WINDOWS 0
 #define OS_LINUX   0
 #define OS_MAC     0
@@ -31,21 +25,15 @@
 #if defined(_WIN32)
 #undef  OS_WINDOWS
 #define OS_WINDOWS 1
-
 #elif defined(__linux__)
 #undef  OS_LINUX
 #define OS_LINUX   1
-
 #elif defined(__APPLE__) && defined(__MACH__)
 #undef  OS_MAC
 #define OS_MAC     1
-
 #else
 #error "Unknown Operating System"
 #endif
-
-////////////////////////////////
-// Macros: Architectures
 
 #define ARCH_X64   0
 #define ARCH_X86   0
@@ -55,25 +43,18 @@
 #if defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__)
 #undef  ARCH_X64
 #define ARCH_X64   1
-
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #undef  ARCH_ARM64
 #define ARCH_ARM64 1
-
 #elif defined(_M_IX86) || defined(__i386__)
 #undef  ARCH_X86
 #define ARCH_X86   1
-
 #elif defined(__arm__) || defined(_M_ARM)
 #undef  ARCH_ARM
 #define ARCH_ARM   1
-
 #else
 #error "Unknown Architecture"
 #endif
-
-////////////////////////////////
-// Macros: Language
 
 #define LANG_CXX 0
 #define LANG_C 0
@@ -85,6 +66,7 @@
 #undef LANG_C
 #define LANG_C 1
 #endif
+
 
 #if LANG_CXX
 #include <cstdint>
@@ -122,36 +104,34 @@
 #error "mem_" functions not defined for this compiler.
 #endif
 
-#define mem_zero(p, size)                mem_set((p), 0, (size))
-#define mem_zero_struct(p)               mem_zero((p), sizeof(*(p)))
-#define mem_zero_array(p, count)         mem_zero((p), sizeof(*(p)) * (count))
-
-#define mem_copy_struct(dest, src)       mem_copy((dest), (src), sizeof(*(dest)))
-#define mem_copy_array(dest, src, count) mem_copy((dest), (src), sizeof(*(dest)) * (count))
-
-#define mem_move_struct(dest, src)       mem_move((dest), (src), sizeof(*(dest)))
-#define mem_move_array(dest, src, count) mem_move((dest), (src), sizeof(*(dest)) * (count))
-
-////////////////////////////////
-// Macros: Misc
+#define mem_zero(mem, size)                 mem_set((mem), 0, (size))
+#define mem_zero_struct(mem)                mem_zero((mem), sizeof(*(mem)))
+#define mem_zero_array(mem, count)          mem_zero((mem), sizeof(*(mem)) * (count))
+#define mem_copy_struct(dest, src)          mem_copy((dest), (src), sizeof(*(dest)))
+#define mem_copy_array(dest, src, count)    mem_copy((dest), (src), sizeof(*(dest)) * (count))
+#define mem_move_struct(dest, src)          mem_move((dest), (src), sizeof(*(dest)))
+#define mem_move_array(dest, src, count)    mem_move((dest), (src), sizeof(*(dest)) * (count))
 
 #if COMPILER_MSVC
-#define align_of(T) __alignof(T)
+#define mem_align_of(T) __alignof(T)
 #elif COMPILER_CLANG
-#define align_of(T) __alignof(T)
+#define mem_align_of(T) __alignof(T)
 #elif COMPILER_GCC
-#define align_of(T) __alignof__(T)
+#define mem_align_of(T) __alignof__(T)
 #else
 #error AlignOf not defined for this compiler.
 #endif
 
 #if COMPILER_MSVC
-#define align_to(x) __declspec(align(x))
+#define mem_align_to(x) __declspec(align(x))
 #elif COMPILER_CLANG || COMPILER_GCC
-#define align_to(x) __attribute__((aligned(x)))
+#define mem_align_to(x) __attribute__((aligned(x)))
 #else
 #error AlignType not defined for this compiler.
 #endif
+
+////////////////////////////////
+// Macros: Helpers
 
 #if COMPILER_MSVC
 #define force_inline __forceinline
@@ -169,6 +149,36 @@
 #error no_inline not defined for this compiler.
 #endif
 
+#define _TO_STRING(S) #S
+#define TO_STRING(S) _TO_STRING(S)
+
+#define _JOIN(a, b) a##b
+#define JOIN(a, b) _JOIN(a, b)
+
+#define global static
+#define function
+#define internal static
+
+#define is_pow2(x)                  ((x) != 0 && (((x) & ((x) - 1)) == 0))
+#define is_pow2_or_zero(x)          (((x) & ((x) - 1)) == 0)
+
+#define align_up_pow2(x, p)         (((x) + ((p) - 1)) & ~((p) - 1))
+#define align_down_pow2(x, p)       ((x) & ~((p) - 1))
+
+#define KB(x) ((x) << 10)
+#define MB(x) ((x) << 20)
+#define GB(x) ((x) << 30)
+#define TB(x) ((x) << 40)
+
+#define clamp_top(val, high)        (((val) < (high)) ? (val) : (high))
+#define clamp_bottom(val, low)      (((val) > (low)) ? (val) : (low))
+#define clamp(val, low, high)       (clamp_bottom(low, clamp_top(val, high)))
+
+#define bit(x) (1ULL << x)
+
+////////////////////////////////
+// Type: Therads
+
 #if COMPILER_MSVC
 #define thread_var __declspec(thread)
 #elif COMPILER_CLANG || COMPILER_GCC
@@ -177,9 +187,18 @@
 #error thread_var not defined for this compiler
 #endif
 
+////////////////////////////////
+// Macros: Debug
+
+#if defined(COMPILER_MSVC)
+    #define trap()                    __debugbreak()
+#elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+    #define trap()                    __builtin_trap()
+#endif
+
 #if MSTD_DEBUG
     #define debug_trap_code_if(code, op, check) while((code) op (check)) { trap(); }
-    #define debug_trap_if(condition) while(condition) { trap(); }
+    #define debug_trap_if(condition)            while(condition) { trap(); }
     #define DEBUG_TRUE 1
 #else
     #define debug_trap_code_if(code, op, check) ((void)(code))
@@ -187,40 +206,11 @@
     #define DEBUG_TRUE 0
 #endif
 
-#define debug_validate_code(code, check) debug_trap_code_if(code, !=, check)
-#define debug_validate(condition) debug_trap_if(!(condition))
-
-#define _stringify(S) #S
-#define stringify(S) _stringify(S)
-
-#define _concat(a, b) a##b
-#define concat(a,b) _concat(a,b)
-
-#define global static
-#define function
-#define internal static
-
-#define is_pow2(x) ((x) != 0 && (((x) & ((x) - 1)) == 0))
-#define is_pow2_or_zero(x) (((x) & ((x) - 1)) == 0)
-
-#define align_up_pow2(x, p) (((x) + ((p) - 1)) & ~((p) - 1))
-#define align_down_pow2(x, p) ((x) & ~((p) - 1))
-
-#define KB(x) ((x) << 10)
-#define MB(x) ((x) << 20)
-#define GB(x) ((x) << 30)
-#define TB(x) ((x) << 40)
-
-#define clamp_top(val, high)    (((val) < (high)) ? (val) : (high))
-#define clamp_bottom(val, low)  (((val) > (low)) ? (val) : (low))
-#define clamp(val, low, high) (clamp_bottom(low, clamp_top(val, high)))
+#define debug_validate_code(code, check)        debug_trap_code_if(code, !=, check)
+#define debug_validate(condition)               debug_trap_if(!(condition))
 
 ////////////////////////////////
 // Types: Basic
-
-#ifndef MSTD_BASE_TYPES
-    #define MSTD_BASE_TYPES 1
-#endif
 
 typedef int8_t   i8;
 typedef int16_t  i16;
@@ -237,19 +227,22 @@ typedef double f64;
 typedef intptr_t  iptr;
 typedef uintptr_t uptr;
 
-#define enum_t(enum, storage_data_type) storage_data_type
-
-force_inline u64 u64_rotl(u64 x, i8 s);
-force_inline u64 u64_rotr(u64 x, i8 s);
-force_inline i8 u64_popcount(u64 x);
-force_inline i8 u64_countl_zero(u64 x);
+#define enum_t(enum, T) T
 
 #if COMPILER_MSVC
 
-API function i8 u32_msb(u32 mask) { unsigned long where; return _BitScanReverse(&where, mask) ? (i8)where : -1; }
-API function i8 u64_msb(u64 mask) { unsigned long where; return _BitScanReverse64(&where, mask) ? (i8)where : -1; }
-API function i8 u32_lsb(u32 mask) { unsigned long where; return _BitScanForward(&where, mask) ? (i8)where : -1; }
-API function i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward64(&where, mask) ? (i8)where : -1; }
+static function force_inline u8 u32_count_zerol(u32 x) { unsigned long zeros = 0; return _BitScanReverse(&zeros, x) ? (u8)(31 - zeros) : 32; }
+static function force_inline u8 u64_count_zerol(u64 x) { unsigned long zeros = 0; return _BitScanReverse64(&zeros, x) ? (u8)(63 - zeros) : 64; }
+
+static function force_inline u8 u32_count_zeror(u32 x) { unsigned long zeros = 0; _BitScanForward(&zeros, x); return (u8)zeros; }
+static function force_inline u8 u64_count_zeror(u64 x) { unsigned long zeros = 0; _BitScanForward64(&zeros, x); return (u8)zeros; }
+
+static function force_inline i8 u32_msb(u32 x) { unsigned long where; return _BitScanReverse(&where, x)   ? (i8)where : -1; }
+static function force_inline i8 u64_msb(u64 x) { unsigned long where; return _BitScanReverse64(&where, x) ? (i8)where : -1; }
+
+static function force_inline i8 u32_lsb(u32 x) { unsigned long where; return _BitScanForward(&where, x)   ? (i8)where : -1; }
+static function force_inline i8 u64_lsb(u64 x) { unsigned long where; return _BitScanForward64(&where, x) ? (i8)where : -1; }
+
 #define u32_count_set_bits __popcnt
 #define u64_count_set_bits __popcnt64
 
@@ -257,79 +250,23 @@ API function i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward6
 
 #define u32_msb(x) ((x) == 0 ? -1 : 31 - __builtin_clz(x))
 #define u64_msb(x) ((x) == 0 ? -1 : 63 - __builtin_clzll(x))
+
 #define u32_lsb(x) ((x) == 0 ? -1 : __builtin_ctz(x))
 #define u64_lsb(x) ((x) == 0 ? -1 : __builtin_ctzll(x))
+
 #define u32_count_set_bits __builtin_popcount
 #define u64_count_set_bits __builtin_popcountll
+
+#define u32_count_zerol    __builtin_clz
+#define u64_count_zerol    __builtin_clzll
+
+#define u32_count_zeror    __builtin_ctz
+#define u64_count_zeror    __builtin_ctzll
+
 #endif
 
-////////////////////////////////
-// Types: Constants
-
-#define bit_0  (1ULL << 0)
-#define bit_1  (1ULL << 1)
-#define bit_2  (1ULL << 2)
-#define bit_3  (1ULL << 3)
-#define bit_4  (1ULL << 4)
-#define bit_5  (1ULL << 5)
-#define bit_6  (1ULL << 6)
-#define bit_7  (1ULL << 7)
-#define bit_8  (1ULL << 8)
-#define bit_9  (1ULL << 9)
-#define bit_10 (1ULL << 10)
-#define bit_11 (1ULL << 11)
-#define bit_12 (1ULL << 12)
-#define bit_13 (1ULL << 13)
-#define bit_14 (1ULL << 14)
-#define bit_15 (1ULL << 15)
-#define bit_16 (1ULL << 16)
-#define bit_17 (1ULL << 17)
-#define bit_18 (1ULL << 18)
-#define bit_19 (1ULL << 19)
-#define bit_20 (1ULL << 20)
-#define bit_21 (1ULL << 21)
-#define bit_22 (1ULL << 22)
-#define bit_23 (1ULL << 23)
-#define bit_24 (1ULL << 24)
-#define bit_25 (1ULL << 25)
-#define bit_26 (1ULL << 26)
-#define bit_27 (1ULL << 27)
-#define bit_28 (1ULL << 28)
-#define bit_29 (1ULL << 29)
-#define bit_30 (1ULL << 30)
-#define bit_31 (1ULL << 31)
-#define bit_32 (1ULL << 32)
-#define bit_33 (1ULL << 33)
-#define bit_34 (1ULL << 34)
-#define bit_35 (1ULL << 35)
-#define bit_36 (1ULL << 36)
-#define bit_37 (1ULL << 37)
-#define bit_38 (1ULL << 38)
-#define bit_39 (1ULL << 39)
-#define bit_40 (1ULL << 40)
-#define bit_41 (1ULL << 41)
-#define bit_42 (1ULL << 42)
-#define bit_43 (1ULL << 43)
-#define bit_44 (1ULL << 44)
-#define bit_45 (1ULL << 45)
-#define bit_46 (1ULL << 46)
-#define bit_47 (1ULL << 47)
-#define bit_48 (1ULL << 48)
-#define bit_49 (1ULL << 49)
-#define bit_50 (1ULL << 50)
-#define bit_51 (1ULL << 51)
-#define bit_52 (1ULL << 52)
-#define bit_53 (1ULL << 53)
-#define bit_54 (1ULL << 54)
-#define bit_55 (1ULL << 55)
-#define bit_56 (1ULL << 56)
-#define bit_57 (1ULL << 57)
-#define bit_58 (1ULL << 58)
-#define bit_59 (1ULL << 59)
-#define bit_60 (1ULL << 60)
-#define bit_61 (1ULL << 61)
-#define bit_62 (1ULL << 62)
-#define bit_63 (1ULL << 63)
+API function force_inline u64 u64_rotl(u64 x, i8 s);
+API function force_inline u64 u64_rotr(u64 x, i8 s);
 
 ////////////////////////////////
 // Types: Arena
@@ -337,18 +274,12 @@ API function i8 u64_lsb(u64 mask) { unsigned long where; return _BitScanForward6
 #define ARENA_DEFAULT_COMMIT_SIZE MB(4)
 #define ARENA_DEFAULT_RESERVE_SIZE MB(64)
 
-typedef enum ArenaFlag ArenaFlag;
-enum ArenaFlag {
-    ARENA_FLAG_NONE = 0,
-    ARENA_FLAG_COMMIT_LARGE_PAGES = 1 << 0,
-};
-
 typedef struct Arena Arena;
 struct Arena {
     u64 cursor;
     u64 committed;
     u64 reserved;
-    enum_t(ArenaFlag, u32) flags;
+    u32 commit_large_pages;
     u32 page_size;
 };
 
@@ -365,11 +296,11 @@ struct ArenaTemp {
 
 typedef ArenaTemp ArenaScratch;
 
-API function Arena* arena_alloc(u64 reserve_size, ArenaFlag flags);
+API function Arena* arena_alloc(u64 reserve_size, u32 commit_large_pages);
 
 API function void* arena_push(Arena* arena, u64 size, u64 align);
-#define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), align_of(T))
-#define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), align_of(T))
+#define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), mem_align_of(T))
+#define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), mem_align_of(T))
 
 API function void arena_reset(Arena* arena);
 API function void arena_release(Arena *arena);
@@ -390,6 +321,8 @@ API function void arena_scratch_end(ArenaScratch scratch);
 
 ////////////////////////////////
 // Types: Str8, Str16, Str32
+
+#define STR_NPOS UINT64_MAX
 
 typedef struct Str8 Str8;
 struct Str8 {
@@ -424,7 +357,7 @@ enum CharType {
     CHAR_TYPE_DIGIT16 = (1 << 4), // 0x10
 };
 
-align_to(64) global u8 ASCII_LUT[256] = {
+mem_align_to(64) global u8 ASCII_LUT[256] = {
     /* 0x00 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, 0, 0,
     /* 0x10 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     /* 0x20 */ CHAR_TYPE_SPACE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -452,8 +385,7 @@ align_to(64) global u8 ASCII_LUT[256] = {
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
 API function Str8 str8_from_cstr(u8* str);
-
-#define str8(literal)  str8_from_cstr((u8*)literal)
+#define str8(literal)  (Str8) {.data = literal, .size = sizeof(literal)}
 
 internal function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
 #define str8_from_fmt(arena, fmt, ...) _str8_from_fmt(arena, (u8*)fmt, ##__VA_ARGS__)
@@ -483,6 +415,9 @@ API function Str8 str8_from_32(Arena* arena, Str32 text);
 API function Str32 str32_from_8(Arena* arena, Str8 text);
 API function Str8 str8_copy(Arena* arena, Str8 text);
 API function Str16 str16_copy(Arena* arena, Str16 text);
+
+API function u64 str8_find_first(Str8 sub_str, Str8 data);
+API function u64 str8_find_last(Str8 sub_str, Str8 data);
 
 ////////////////////////////////
 // Linked List
@@ -598,16 +533,10 @@ API function void* os_load_symbol(OS_Handle lib, u8* name);
 
 API function void os_attach_console_if_exists();
 
-////////////////////////////////
-// OS: Memory Helpers
-
-API function void* os_reserve(u64 size, u32 large_pages);
-API function u8 os_commit(void* ptr, u64 size, u32 large_pages);
-API function void os_decommit(void* ptr, u64 size);
-API function void os_release(void* ptr, u64 size);
-
-////////////////////////////////
-// OS: FileSystem Helpers
+API function void* os_mem_reserve(u64 size, u32 large_pages);
+API function u8 os_mem_commit(void* ptr, u64 size, u32 large_pages);
+API function void os_mem_decommit(void* ptr, u64 size);
+API function void os_mem_release(void* ptr, u64 size);
 
 typedef enum OS_AccessFlag OS_AccessFlag;
 enum OS_AccessFlag {
@@ -682,5 +611,14 @@ struct DArrayMetaData {
 };
 
 API function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
+
+//////////////////////////////
+// MX
+
+
+#ifdef MSTD_USE_MATH
+#include "mx/mstd_math.h"
+#endif
+
 
 #endif // MSTD_H
