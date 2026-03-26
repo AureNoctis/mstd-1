@@ -385,7 +385,7 @@ mem_align_to(64) global u8 ASCII_LUT[256] = {
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
 API function Str8 str8_from_cstr(u8* str);
-#define str8(literal)  (Str8) {.data = literal, .size = sizeof(literal)}
+#define str8(literal)  str8_from_cstr((u8*)literal)
 
 internal function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
 #define str8_from_fmt(arena, fmt, ...) _str8_from_fmt(arena, (u8*)fmt, ##__VA_ARGS__)
@@ -528,8 +528,9 @@ API function f64 os_get_inverse_ticks_per_us();
 API function u64 os_get_ticks();
 #define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
 
-API function OS_Handle os_load_lib(u8* name);
-API function void* os_load_symbol(OS_Handle lib, u8* name);
+API function OS_Handle os_lib_load(u8* name);
+API function void os_lib_unload(OS_Handle handle);
+API function void* os_lib_get_symbol(OS_Handle lib, u8* name);
 
 API function void os_attach_console_if_exists();
 
@@ -559,7 +560,15 @@ enum OS_FileEventType {
     OS_FILE_EVENT_TYPE_RENAMED,
 };
 
-typedef void OS_FileWatcher;
+typedef struct OS_FileEvent OS_FileEvent;
+struct OS_FileEvent {
+    Str8 name;
+    OS_FileEventType type;
+};
+
+#if OS_WINDOWS
+typedef struct OS_Win32_FileWatcher OS_FileWatcher;
+#endif
 
 API function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
 API function void os_file_close(OS_Handle handle);
@@ -570,10 +579,10 @@ API function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data)
 #define os_file_write_string(handle, str) os_file_write((handle), 0, str.size, str.data)
 
 
-API function void os_file_delete(Str8 path);
+API function u32 os_file_delete(Str8 path);
 API function u64 os_file_get_size(OS_Handle handle);
-API function void os_file_copy(Str8 src, Str8 dest);
-API function void os_file_move(Str8 src, Str8 dest);
+API function u32 os_file_copy(Str8 src, Str8 dest);
+API function u32 os_file_move(Str8 src, Str8 dest);
 API function u32 os_file_path_exists(Str8 path);
 API function u32 os_file_directory_exists(Str8 path);
 

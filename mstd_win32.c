@@ -1,7 +1,8 @@
-#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <direct.h>
 #include <stdio.h>
 #include <io.h>
+#include "mstd.h"
 
 #pragma comment(lib, "user32")
 #pragma comment(lib, "advapi32")
@@ -17,7 +18,7 @@ struct OS_Win32_State {
 
 global OS_Win32_State os_win32_state;
 
- void os_init_state() {
+void os_init_state() {
 
     u32 large_pages_allowed = 0;
 
@@ -78,16 +79,6 @@ f64 os_get_inverse_ticks_per_us() {
     return os_win32_state.inverse_ticks_per_us;
 }
 
-OS_Handle os_load_lib(u8* name) {
-    OS_Handle handle;
-    handle.val[0] = (u64)LoadLibraryA((char*)name);
-    return handle;
-}
-
-void* os_load_symbol(OS_Handle lib, u8* name) {
-    return (void*)GetProcAddress((HMODULE)lib.val[0], (char*)name);
-}
-
 void os_attach_console_if_exists() {
     if (AttachConsole(ATTACH_PARENT_PROCESS)) {
         FILE* dummy;
@@ -128,12 +119,12 @@ OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
     DWORD share_mode = 0;
     DWORD creation_disposition = OPEN_EXISTING;
 
-    if (flags & OS_ACCESS_FLAG_READ)        { access_flags |= GENERIC_READ; }
-    if (flags & OS_ACCESS_FLAG_WRITE)       { access_flags |= GENERIC_WRITE; creation_disposition = CREATE_ALWAYS; }
-    if (flags & OS_ACCESS_FLAG_EXECUTE)     { access_flags |= GENERIC_EXECUTE; }
-    if (flags & OS_ACCESS_FLAG_SHARE_READ)  { share_mode |= FILE_SHARE_READ; }
+    if (flags & OS_ACCESS_FLAG_READ) { access_flags |= GENERIC_READ; }
+    if (flags & OS_ACCESS_FLAG_WRITE) { access_flags |= GENERIC_WRITE; creation_disposition = CREATE_ALWAYS; }
+    if (flags & OS_ACCESS_FLAG_EXECUTE) { access_flags |= GENERIC_EXECUTE; }
+    if (flags & OS_ACCESS_FLAG_SHARE_READ) { share_mode |= FILE_SHARE_READ; }
     if (flags & OS_ACCESS_FLAG_SHARE_WRITE) { share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE; }
-    if (flags & OS_ACCESS_FLAG_APPEND)      { access_flags &= ~GENERIC_WRITE; access_flags |= FILE_APPEND_DATA; creation_disposition = OPEN_ALWAYS;}
+    if (flags & OS_ACCESS_FLAG_APPEND) { access_flags &= ~GENERIC_WRITE; access_flags |= FILE_APPEND_DATA; creation_disposition = OPEN_ALWAYS; }
 
     HANDLE file = CreateFile((WCHAR*)path_w32.data, access_flags, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
     if (file != INVALID_HANDLE_VALUE)
@@ -216,14 +207,13 @@ u64 os_file_get_size(OS_Handle handle) {
     return size;
 }
 
-void os_file_delete(Str8 path) {
+u32 os_file_delete(Str8 path) {
     int max_retries = 5;
     int sleep_ms = 1;
 
     for (int i = 0; i < max_retries; i++) {
-        if (DeleteFileA((char*)path.data)) {
-            return;
-        }
+        if (DeleteFileA((char*)path.data))
+            return 1;
 
         DWORD err = GetLastError();
         if (err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION) {
@@ -233,6 +223,7 @@ void os_file_delete(Str8 path) {
         else
             break;
     }
+    return 0;
 }
 
 u32 os_file_copy(Str8 src, Str8 dest) {
@@ -240,7 +231,7 @@ u32 os_file_copy(Str8 src, Str8 dest) {
     int sleep_ms = 1;
 
     for (int i = 0; i < max_retries; i++) {
-        if (CopyFileExA((char*)src.data, (char*)dest.data, NULL, NULL, &FALSE, COPY_FILE_NO_BUFFERING))
+        if (CopyFileExA((char*)src.data, (char*)dest.data, NULL, NULL, FALSE, COPY_FILE_NO_BUFFERING))
             return 1;
 
         DWORD err = GetLastError();
@@ -255,13 +246,13 @@ u32 os_file_copy(Str8 src, Str8 dest) {
     return 0;
 }
 
-void os_file_move(Str8 src, Str8 dest) {
+u32 os_file_move(Str8 src, Str8 dest) {
     int max_retries = 5;
     int sleep_ms = 1;
 
     for (int i = 0; i < max_retries; i++) {
         if (MoveFileExA((char*)src.data, (char*)dest.data, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED | MOVEFILE_WRITE_THROUGH)) {
-            return;
+            return 1;
         }
 
         DWORD err = GetLastError();
@@ -272,6 +263,7 @@ void os_file_move(Str8 src, Str8 dest) {
         else
             break;
     }
+    return 0;
 }
 
 u32 os_file_path_exists(Str8 path) {
@@ -300,9 +292,9 @@ function OS_FileWatcher os_file_watcher_create(Str8 path, u32 watch_sub_director
     Str16 u16_path = str16_from_8(sch.arena, path);
 
     HANDLE dir = CreateFileW((LPCWSTR)u16_path.data, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-    NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+        NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
-    OS_Win32_FileWatcher watcher = {0};
+    OS_Win32_FileWatcher watcher = { 0 };
 
     if (dir == INVALID_HANDLE_VALUE)
         return(watcher);
@@ -373,9 +365,9 @@ function OS_FileEvent* os_file_watcher_poll_events(OS_FileWatcher* watcher, Aren
 
         mem_zero_struct(&watcher->overlapped);
         ReadDirectoryChangesW(watcher->dir_handle, watcher->notification_buffer, sizeof(watcher->notification_buffer),
-                              watcher->scan_sub_tree,
-                              FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME,
-                              NULL, &watcher->overlapped, NULL);
+            watcher->scan_sub_tree,
+            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME,
+            NULL, &watcher->overlapped, NULL);
     }
 
     *out_count = count;
@@ -394,4 +386,18 @@ u64 os_get_ticks() {
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
     return (u64)(counter.QuadPart);
+}
+
+function OS_Handle os_lib_load(u8* name) {
+    OS_Handle handle;
+    handle.val[0] = (u64)LoadLibraryA((char*)name);
+    return handle;
+}
+
+function void os_lib_unload(OS_Handle handle) {
+    FreeLibrary((HMODULE)handle.val[0]);
+}
+
+void* os_lib_get_symbol(OS_Handle lib, u8* name) {
+    return (void*)GetProcAddress((HMODULE)lib.val[0], (char*)name);
 }
