@@ -6624,7 +6624,7 @@ static force_inline f64mat4x4 f64mat4x4_scale(f64mat4x4 a, f64 b) {
 	return result;
 }
 
-}
 #ifdef __cplusplus
+}
 #endif
 #endif // MSTD_MATH_H
