@@ -70,12 +70,9 @@
 
 #if LANG_CXX
 #include <cstdint>
-#define API extern "C"
+extern "C" {
 #elif LANG_C
-#define API extern
 #include <stdint.h>
-#else
-#error "API macro is not defined for this language."
 #endif
 
 #if COMPILER_MSVC
@@ -265,8 +262,112 @@ static function force_inline i8 u64_lsb(u64 x) { unsigned long where; return _Bi
 
 #endif
 
-API function force_inline u64 u64_rotl(u64 x, i8 s);
-API function force_inline u64 u64_rotr(u64 x, i8 s);
+function force_inline u64 u64_rotl(u64 x, i8 s);
+function force_inline u64 u64_rotr(u64 x, i8 s);
+
+////////////////////////////////
+// Linked List
+
+#define SLL_STRUCT_GEN(ListType, NodeType, Data)                        \
+    typedef struct NodeType NodeType;                                   \
+    struct NodeType {                                                   \
+        Data data;                                                      \
+        NodeType* next;                                                 \
+    };                                                                  \
+                                                                        \
+    typedef struct ListType ListType;                                   \
+    struct ListType {                                                   \
+        NodeType* head;                                                 \
+        NodeType* tail;                                                 \
+    };
+
+#define DLL_STRUCT_GEN(ListType, NodeType, Data)                        \
+    typedef struct NodeType {                                           \
+        Data data;                                                      \
+        NodeType* next;                                                 \
+        NodeType* prev;                                                 \
+    }NodeType;                                                          \
+                                                                        \
+    typedef struct ListType {                                           \
+        NodeType* head;                                                 \
+        NodeType* tail;                                                 \
+    } ListType;
+
+#define dll_push_back_np(head, tail, node, next, prev) (                \
+    (head) == 0 ?                                                       \
+    (                                                                   \
+        (head) = (tail) = (node),                                       \
+        (node)->next = (node)->prev = 0                                 \
+    ) :                                                                 \
+    (                                                                   \
+        (node)->prev = (tail),                                          \
+        (tail)->next = (node),                                          \
+        (tail) = (node),                                                \
+        (node)->next = 0                                                \
+    )                                                                   \
+)
+
+#define dll_remove_np(head, tail, node, next, prev) (                   \
+    (head) == (node) ?                                                  \
+    (                                                                   \
+        (head) == (tail) ?                                              \
+        (                                                               \
+            (head) = (tail) = 0                                         \
+        ) :                                                             \
+        (                                                               \
+            (head) = (head)->next,                                      \
+            (head)->prev = 0                                            \
+        )                                                               \
+    ) :                                                                 \
+    (                                                                   \
+        (tail) == (node) ?                                              \
+        (                                                               \
+            (tail) = (tail)->prev,                                      \
+            (tail)->next = 0                                            \
+        ) :                                                             \
+        (                                                               \
+            (node)->next->prev = (node)->prev,                          \
+            (node)->prev->next = (node)->next                           \
+        )                                                               \
+    )                                                                   \
+)
+
+#define sll_push_front_n(head, tail, node, next) (                      \
+    (node)->next = (head),                                              \
+    ((head) == 0 ? (tail) = (node) : 0),                                \
+    (head) = (node)                                                     \
+)
+
+#define sll_push_back_n(head, tail, node, next) (                       \
+    (node)->next = 0,                                                   \
+    ((head) == 0 ? ((head) = (node)) : ((tail)->next = (node))),        \
+    (tail) = (node)                                                     \
+)
+
+#define sll_pop_front_n(head, tail, next) (                             \
+    (head) == (tail) ? ((head) = (tail) = 0) : ((head) = (head)->next)  \
+)
+
+#define sll_pop_back_n(head, tail, next) (                              \
+    (head) == (tail) ? ((head) = (tail) = 0) : ((head) = (head)->next)  \
+)
+
+#define dll_push_front_np(head, tail, node, next, prev) dll_push_back_np(tail, head, node, prev, next)
+
+#define dll_push_back(head, tail, node)  dll_push_back_np(head, tail, node, next, prev)
+#define dll_push_front(head, tail, node) dll_push_front_np(head, tail, node, next, prev)
+#define dll_remove(head, tail, node)     dll_remove_np(head, tail, node, next, prev)
+
+#define sll_push_front(head, tail, node) sll_push_front_n(head, tail, node, next)
+#define sll_push_back(head, tail, node)  sll_push_back_n(head, tail, node, next)
+#define sll_pop_front(head, tail)        sll_pop_front_n(head, tail, next)
+#define sll_pop_back(head, tail)         sll_pop_back_n(head, tail, next)
+
+#define sll_stack_push(head, tail, node) sll_push_front(head, tail, node)
+#define sll_stack_pop(head, tail)        sll_pop_front(head, tail)
+
+#define sll_queue_push(head, tail, node) sll_push_back(head, tail, node)
+#define sll_queue_pop(head, tail)        sll_pop_front(head, tail)
 
 ////////////////////////////////
 // Types: Arena
@@ -296,24 +397,24 @@ struct ArenaTemp {
 
 typedef ArenaTemp ArenaScratch;
 
-API function Arena* arena_alloc(u64 reserve_size, u32 commit_large_pages);
+function Arena* arena_alloc(u64 reserve_size, u32 commit_large_pages);
 
-API function void* arena_push(Arena* arena, u64 size, u64 align);
+function void* arena_push(Arena* arena, u64 size, u64 align);
 #define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), mem_align_of(T))
 #define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), mem_align_of(T))
 
-API function void arena_reset(Arena* arena);
-API function void arena_release(Arena *arena);
+function void arena_reset(Arena* arena);
+function void arena_release(Arena *arena);
 
 /// @brief This function can have 0 passed as param which causes it to create a TLS scratch arena.
 ArenaTemp arena_temp_begin(Arena* arena);
-API function void arena_temp_end(ArenaTemp temp);
+function void arena_temp_end(ArenaTemp temp);
 
 /// @brief defines a loop which will run once. use { //code  } just after it.
 #define arena_temp_scope(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
 
 ArenaScratch arena_scratch_begin();
-API function void arena_scratch_end(ArenaScratch scratch);
+function void arena_scratch_end(ArenaScratch scratch);
 
 /// @brief defines a loop which will run once. use { //code  } just after it.
 /// @param scratch - name you pass should be used in the scope
@@ -384,118 +485,47 @@ mem_align_to(64) global u8 ASCII_LUT[256] = {
 #define str8_char_to_upper(c)        ((u8)((u8)(c) ^ (str8_char_is_lower(c) ? 0x20 : 0)))
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
-API function Str8 str8_from_cstr(u8* str);
+function Str8 str8_from_cstr(u8* str);
 #define str8(literal)  str8_from_cstr((u8*)literal)
 
 internal function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
 #define str8_from_fmt(arena, fmt, ...) _str8_from_fmt(arena, (u8*)fmt, ##__VA_ARGS__)
 
-API function Str8 str8_of_size(Arena* arena, u64 size);
-API function Str16 str16_of_size(Arena* arena, u64 size);
+function Str8 str8_of_size(Arena* arena, u64 size);
+function Str16 str16_of_size(Arena* arena, u64 size);
 
-API function Str8 str8_concat(Arena* arena, Str8 a, Str8 b);
-API function Str16 str16_concat(Arena* arena, Str16 a, Str16 b);
+function Str8 str8_concat(Arena* arena, Str8 a, Str8 b);
+function Str16 str16_concat(Arena* arena, Str16 a, Str16 b);
 
-API function UnicodeDecode utf8_decode(u8* str, u64 max);
-API function UnicodeDecode utf16_decode(u16* str, u64 max);
-API function u32 utf8_encode(u8* str, u32 codepoint);
-API function u32 utf16_encode(u16* str, u32 codepoint);
-API function u32 utf8_size(u32 cp);
-API function u32 utf16_size(u32 cp);
+function UnicodeDecode utf8_decode(u8* str, u64 max);
+function UnicodeDecode utf16_decode(u16* str, u64 max);
+function u32 utf8_encode(u8* str, u32 codepoint);
+function u32 utf16_encode(u16* str, u32 codepoint);
+function u32 utf8_size(u32 cp);
+function u32 utf16_size(u32 cp);
 
-API function void str8_to_lower(Str8 text);
-API function void str8_to_upper(Str8 text);
-API function u8 str8_equal(Str8 a, Str8 b);
-API function Str16 str16_from_cstr(u16* str);
+function void str8_to_lower(Str8 text);
+function void str8_to_upper(Str8 text);
+function u8 str8_equal(Str8 a, Str8 b);
+function Str16 str16_from_cstr(u16* str);
 #define str16(literal) str16_from_cstr((u16*)literal)
-API function u8 str16_equal(Str16 a, Str16 b);
-API function Str8 str8_from_16(Arena* arena, Str16 text);
-API function Str16 str16_from_8(Arena* arena, Str8 text);
-API function Str8 str8_from_32(Arena* arena, Str32 text);
-API function Str32 str32_from_8(Arena* arena, Str8 text);
-API function Str8 str8_copy(Arena* arena, Str8 text);
-API function Str16 str16_copy(Arena* arena, Str16 text);
+function u8 str16_equal(Str16 a, Str16 b);
+function Str8 str8_from_16(Arena* arena, Str16 text);
+function Str16 str16_from_8(Arena* arena, Str8 text);
+function Str8 str8_from_32(Arena* arena, Str32 text);
+function Str32 str32_from_8(Arena* arena, Str8 text);
+function Str8 str8_copy(Arena* arena, Str8 text);
+function Str16 str16_copy(Arena* arena, Str16 text);
 
-API function u64 str8_find_first(Str8 sub_str, Str8 data);
-API function u64 str8_find_last(Str8 sub_str, Str8 data);
+function u64 str8_find_first(Str8 sub_str, Str8 data);
+function u64 str8_find_last(Str8 sub_str, Str8 data);
 
 ////////////////////////////////
-// Linked List
-#define SLL_STACK_GEN(ListType, NodeType) \
-typedef struct NodeType NodeType; \
-struct NodeType { \
-    Str8 data; \
-    NodeType* next; \
-}; \
- \
-typedef struct ListType ListType; \
-struct ListType { \
-    NodeType* head; \
-};
+// Types: Str8List
+SLL_STRUCT_GEN(Str8List, Str8Node, Str8)
 
-#define SLL_QUEUE_GEN(ListType, NodeType) \
-typedef struct NodeType NodeType; \
-struct NodeType { \
-    Str8 data; \
-    NodeType* next; \
-}; \
- \
-typedef struct ListType ListType; \
-struct ListType { \
-    NodeType* head; \
-    NodeType* tail; \
-};
-
-#define DLL_GEN(ListType, NodeType) \
-typedef struct NodeType NodeType; \
-struct NodeType { \
-    Str8 data; \
-    NodeType* next; \
-    NodeType* prev; \
-}; \
- \
-typedef struct ListType ListType; \
-struct ListType { \
-    NodeType* head; \
-    NodeType* tail; \
-};
-
-#define dll_push_back_np(head, tail, node, next, prev) ((head) == 0 ? \
-        ((head) = (tail) = (node), (node)->next = (node)->prev = 0) \
-        : \
-        ((node)->prev = (tail), (tail)->next = (node), (tail) = (node), (node)->next = 0))
-
-#define dll_push_front_np(head, tail, node, next, prev) dll_push_back_np(tail, head, node, prev, next)
-#define dll_remove_np(head, tail, node, next, prev) (((head) == (node)) ? \
-    (((head) == (tail)) ? ((head) = (tail) = 0) : ((head) = (head)->next, (head)->prev = 0)) \
-    : \
-    ((tail) == (node)) ? ((tail) = (tail)->prev, (tail)->next = 0) : ((node)->next->prev = (node)->prev, (node)->prev->next = (node)->next))
-
-#define dll_push_back(head, tail, node)  dll_push_back_np(head, tail, node, next, prev)
-#define dll_push_front(head, tail, node) dll_push_front_np(head, tail, node, next, prev)
-#define dll_remove(head, tail, node)     dll_remove_np(head, tail, node, next, prev)
-
-#define sll_stack_push_n(head, node, next) ((node)->next = (head), (head) = (node))
-#define sll_stack_pop_n(head, next) ((head) == 0 ? 0 : ((head) = (head)->next))
-
-#define sll_stack_push(head, node) sll_stack_push_n(head, node, next)
-#define sll_stack_pop(head)        sll_stack_pop_n(head, next)
-
-#define sll_queue_push_n(head, tail, node, next) (((head) == 0 ? \
-    (head) = (tail) = (node) \
-    : \
-    ((tail)->next = (node), (tail) = (node))), (node)->next = 0)
-
-#define sll_queue_push_front_n(head, tail, node, next) ((head) == 0 ? \
-    ((head) = (tail) = (node), (node)->next = 0) \
-    : \
-    ((node)->next = (head), (head) = (node)))
-
-#define sll_queue_pop_n(head, tail, next) ((head) == (tail) ? ((head) = (tail) = 0) : ((head) = (head)->next))
-
-#define sll_queue_push(head, tail, node)       sll_queue_push_n(head, tail, node, next)
-#define sll_queue_push_front(head, tail, node) sll_queue_push_front_n(head, tail, node, next)
-#define sll_queue_pop(head, tail)              sll_queue_pop_n(head, tail, next)
+function void str8_list_push(Arena* arena, Str8List* list, Str8 data);
+function Str8 str8_list_join(Arena* arena, Str8List* list);
 
 ////////////////////////////////
 // OS: Core
@@ -520,24 +550,24 @@ struct OS_Handle {
     u64 val[1];
 };
 
-API function void os_init_state();
-API function OS_SystemInfo* os_get_system_info();
-API function OS_ProcessInfo* os_get_process_info();
-API function u64 os_get_resolution_us();
-API function f64 os_get_inverse_ticks_per_us();
-API function u64 os_get_ticks();
+function void os_init_state();
+function OS_SystemInfo* os_get_system_info();
+function OS_ProcessInfo* os_get_process_info();
+function u64 os_get_resolution_us();
+function f64 os_get_inverse_ticks_per_us();
+function u64 os_get_ticks();
 #define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
 
-API function OS_Handle os_lib_load(u8* name);
-API function void os_lib_unload(OS_Handle handle);
-API function void* os_lib_get_symbol(OS_Handle lib, u8* name);
+function OS_Handle os_lib_load(u8* name);
+function void os_lib_unload(OS_Handle handle);
+function void* os_lib_get_symbol(OS_Handle lib, u8* name);
 
-API function void os_attach_console_if_exists();
+function void os_attach_console_if_exists();
 
-API function void* os_mem_reserve(u64 size, u32 large_pages);
-API function u8 os_mem_commit(void* ptr, u64 size, u32 large_pages);
-API function void os_mem_decommit(void* ptr, u64 size);
-API function void os_mem_release(void* ptr, u64 size);
+function void* os_mem_reserve(u64 size, u32 large_pages);
+function u8 os_mem_commit(void* ptr, u64 size, u32 large_pages);
+function void os_mem_decommit(void* ptr, u64 size);
+function void os_mem_release(void* ptr, u64 size);
 
 typedef enum OS_AccessFlag OS_AccessFlag;
 enum OS_AccessFlag {
@@ -570,25 +600,25 @@ struct OS_FileEvent {
 typedef struct OS_Win32_FileWatcher OS_FileWatcher;
 #endif
 
-API function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
-API function void os_file_close(OS_Handle handle);
-API function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
+function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
+function void os_file_close(OS_Handle handle);
+function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
 #define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
-API function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
+function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
 #define os_file_write_struct(handle, offset, struct_ptr) os_file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
 #define os_file_write_string(handle, str) os_file_write((handle), 0, str.size, str.data)
 
 
-API function u32 os_file_delete(Str8 path);
-API function u64 os_file_get_size(OS_Handle handle);
-API function u32 os_file_copy(Str8 src, Str8 dest);
-API function u32 os_file_move(Str8 src, Str8 dest);
-API function u32 os_file_path_exists(Str8 path);
-API function u32 os_file_directory_exists(Str8 path);
+function u32 os_file_delete(Str8 path);
+function u64 os_file_get_size(OS_Handle handle);
+function u32 os_file_copy(Str8 src, Str8 dest);
+function u32 os_file_move(Str8 src, Str8 dest);
+function u32 os_file_path_exists(Str8 path);
+function u32 os_file_directory_exists(Str8 path);
 
-API function OS_FileWatcher os_file_watcher_create(Str8 path, u32 watch_sub_directory);
-API function OS_FileEvent* os_file_watcher_poll_events(OS_FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
-API function void os_file_watcher_destroy(OS_FileWatcher* watcher);
+function OS_FileWatcher os_file_watcher_create(Str8 path, u32 watch_sub_directory);
+function OS_FileEvent* os_file_watcher_poll_events(OS_FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
+function void os_file_watcher_destroy(OS_FileWatcher* watcher);
 
 ////////////////////////////////
 // OS: Timer
@@ -608,9 +638,9 @@ void timer_update(Timer* timer);
 // Types: DArray
 
 typedef struct DArrayHeader DArrayHeader;
-struct DArrayHeader {
-    u64 size;
-};
+struct DArrayHeader { u64 size; };
+
+#define __darray__ union { u64 size; DArrayHeader header; };
 
 typedef struct DArrayMetaData DArrayMetaData;
 struct DArrayMetaData {
@@ -619,7 +649,7 @@ struct DArrayMetaData {
     u64 el_size;
 };
 
-API function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
+function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
 
 //////////////////////////////
 // MX
@@ -627,6 +657,10 @@ API function force_inline void* darray_handle(Arena* arena, DArrayHeader* header
 
 #ifdef MSTD_USE_MATH
 #include "mx/mstd_math.h"
+#endif
+
+#if LANG_CXX
+}
 #endif
 
 

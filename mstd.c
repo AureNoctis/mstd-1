@@ -488,12 +488,33 @@ function Str16 str16_copy(Arena* arena, Str16 text) {
     return string;
 }
 
+function void str8_list_push(Arena* arena, Str8List* list, Str8 data) {
+    Str8Node* node = arena_push_struct(arena, Str8Node);
+    node->data = data;
+    sll_queue_push(list->head, list->tail, node);
+}
+
+function Str8 str8_list_join(Arena* arena, Str8List* list) {
+    u64 data_size = 0;
+    for (Str8Node* node = list->head; node != 0; node = node->next) {
+        data_size += node->data.size;
+    }
+
+    Str8 data = str8_of_size(arena, data_size);
+    u64 cursor = 0;
+    for (Str8Node* node = list->head; node != 0; node = node->next) {
+        mem_copy(data.data + cursor, node->data.data, node->data.size);
+        cursor += node->data.size;
+    }
+
+    return data;
+}
+
 function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index) {
     u8** chunks = (u8**)(header + 1);
 
     u64 i_shift = index >> meta.shift;
-    i8 msb = u64_msb(i_shift + 1);
-    i8 chunks_i = msb;
+    i8 chunks_i = u64_msb(i_shift + 1);
 
     if (arena && chunks_i < meta.chunks_n) {
         for (i8 i = 0; i <= chunks_i; ++i) {
