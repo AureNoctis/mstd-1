@@ -1,7 +1,12 @@
 #include "mstd.h"
 
 #if OS_WINDOWS
-#include "mstd_win32.c"
+    #include "mstd_win32.c"
+
+#ifdef MSTD_USE_GFX
+    #include "mx/mstd_gfx_win32.c"
+#endif
+
 #endif
 
 #include <math.h>
@@ -13,6 +18,9 @@ function Timer timer_init() {
     timer.smooth_delta = 16666.6f;
     timer.very_smooth_delta = 16666.6f;
 
+    timer.resolution_us = os_get_resolution_us();
+    timer.inverse_ticks_per_us = 1000000.0 / (f64)timer.resolution_us;
+
     return timer;
 }
 
@@ -20,7 +28,7 @@ function void timer_update(Timer* timer) {
     u64 current_ticks = os_get_ticks();
 
     u64 elapsed_ticks = (current_ticks > timer->ticks) ? (current_ticks - timer->ticks) : 0;
-    double us = (double)elapsed_ticks * os_get_inverse_ticks_per_us();
+    double us = (double)elapsed_ticks * timer->inverse_ticks_per_us;
     if (us > 200000.0) us = 200000.0;
 
     timer->delta = (float)us;
@@ -32,6 +40,10 @@ function void timer_update(Timer* timer) {
 
     timer->smooth_delta += diff * clamp_bottom(f, 1.0f / 32.0f);
     timer->very_smooth_delta += (timer->delta - timer->very_smooth_delta) * clamp_bottom(f, 1.0f / 128.0f);
+}
+
+function u64 timer_get_timestamp(Timer* timer) {
+    return (u64)(timer->ticks * timer->inverse_ticks_per_us);
 }
 
 function force_inline u64 u64_rotl(u64 x, i8 s) {
@@ -49,7 +61,7 @@ force_inline u64 u64_rotr(u64 x, i8 s) {
 }
 
 function Arena* arena_alloc(u64 reserve_size, u32 commit_large_pages) {
-    u64 page_size = (commit_large_pages) ? os_get_system_info()->large_page_size : os_get_system_info()->page_size;
+    u64 page_size = (commit_large_pages) ? os_get_large_page_size() : os_get_page_size();
     u64 actual_reserve = align_up_pow2(reserve_size, page_size);
     u64 initial_commit = align_up_pow2(ARENA_DEFAULT_COMMIT_SIZE, page_size);
 

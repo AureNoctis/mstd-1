@@ -550,13 +550,10 @@ struct OS_Handle {
     u64 val[1];
 };
 
-function void os_init_state();
-function OS_SystemInfo* os_get_system_info();
-function OS_ProcessInfo* os_get_process_info();
+function u64 os_get_page_size();
+function u64 os_get_large_page_size();
 function u64 os_get_resolution_us();
-function f64 os_get_inverse_ticks_per_us();
 function u64 os_get_ticks();
-#define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
 
 function OS_Handle os_lib_load(u8* name);
 function void os_lib_unload(OS_Handle handle);
@@ -629,10 +626,15 @@ struct Timer {
     float delta;
     float smooth_delta;
     float very_smooth_delta;
+
+    u64 resolution_us;
+    f64 inverse_ticks_per_us;
 };
 
-Timer timer_init();
-void timer_update(Timer* timer);
+function Timer timer_init();
+function void timer_update(Timer* timer);
+function u64 timer_get_timestamp(Timer* timer);
+#define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
 
 //////////////////////////////
 // Types: DArray
@@ -657,6 +659,10 @@ function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DA
 
 #ifdef MSTD_USE_MATH
 #include "mx/mstd_math.h"
+#endif
+
+#ifdef MSTD_USE_GFX
+#include "mx/mstd_gfx.h"
 #endif
 
 #if LANG_CXX

@@ -1,3 +1,4 @@
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <direct.h>
 #include <stdio.h>
@@ -7,79 +8,24 @@
 #pragma comment(lib, "user32")
 #pragma comment(lib, "advapi32")
 
-typedef struct OS_Win32_State OS_Win32_State;
-struct OS_Win32_State {
-    Arena* arena;
-    OS_SystemInfo system_info;
-    OS_ProcessInfo process_info;
-    u64 resolution_us;
-    f64 inverse_ticks_per_us;
-};
-
-global OS_Win32_State os_win32_state;
-
-void os_init_state() {
-
-    u32 large_pages_allowed = 0;
-
-    {
-        HANDLE token;
-        if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token))
-        {
-            LUID luid;
-            if (LookupPrivilegeValue(0, SE_LOCK_MEMORY_NAME, &luid))
-            {
-                TOKEN_PRIVILEGES priv;
-                priv.PrivilegeCount = 1;
-                priv.Privileges[0].Luid = luid;
-                priv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-                large_pages_allowed = !!AdjustTokenPrivileges(token, 0, &priv, sizeof(priv), 0, 0);
-            }
-            CloseHandle(token);
-        }
-    }
-
-    os_win32_state.resolution_us = 1;
+function u64 os_get_resolution_us() {
     LARGE_INTEGER resolution;
     if (QueryPerformanceFrequency(&resolution))
-        os_win32_state.resolution_us = resolution.QuadPart;
+        return (resolution.QuadPart);
+    return 1;
+}
 
-    os_win32_state.inverse_ticks_per_us = 1000000.0 / (f64)resolution.QuadPart;
-
-    os_win32_state.process_info.large_pages_allowed = large_pages_allowed;
-    os_win32_state.process_info.id = GetCurrentProcessId();
-
+function u64 os_get_page_size() {
     SYSTEM_INFO sysinfo = { 0 };
     GetSystemInfo(&sysinfo);
-    os_win32_state.system_info.page_size = sysinfo.dwPageSize;
-    os_win32_state.system_info.large_page_size = GetLargePageMinimum();
-    os_win32_state.system_info.logical_processor_count = sysinfo.dwNumberOfProcessors;
-    os_win32_state.system_info.allocation_granularity = sysinfo.dwAllocationGranularity;
-
-    os_win32_state.arena = arena_alloc(ARENA_DEFAULT_RESERVE_SIZE, 0);
-    u8 cwd[1024];
-    debug_validate(_getcwd((char*)cwd, sizeof(cwd)));
-    os_win32_state.process_info.current_working_directory = str8_copy(os_win32_state.arena, str8(cwd));
-
+    return sysinfo.dwPageSize;
 }
 
-OS_SystemInfo* os_get_system_info() {
-    return &os_win32_state.system_info;
+function u64 os_get_large_page_size() {
+    return GetLargePageMinimum();
 }
 
-OS_ProcessInfo* os_get_process_info() {
-    return &os_win32_state.process_info;
-}
-
-u64 os_get_resolution_us() {
-    return os_win32_state.resolution_us;
-}
-
-f64 os_get_inverse_ticks_per_us() {
-    return os_win32_state.inverse_ticks_per_us;
-}
-
-void os_attach_console_if_exists() {
+function void os_attach_console_if_exists() {
     if (AttachConsole(ATTACH_PARENT_PROCESS)) {
         FILE* dummy;
         freopen_s(&dummy, "CONOUT$", "w", stdout);
@@ -91,7 +37,7 @@ void os_attach_console_if_exists() {
     }
 }
 
-void* os_mem_reserve(u64 size, u32 large_pages) {
+function void* os_mem_reserve(u64 size, u32 large_pages) {
     void* result = (large_pages) ? VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE)
         : VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
     return result;
@@ -106,12 +52,12 @@ void os_mem_decommit(void* ptr, u64 size) {
     VirtualFree(ptr, size, MEM_DECOMMIT);
 }
 
-void os_mem_release(void* ptr, u64 size) {
+function void os_mem_release(void* ptr, u64 size) {
     (void)size;
     VirtualFree(ptr, 0, MEM_RELEASE);
 }
 
-OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
+function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
     OS_Handle result = { 0 };
     ArenaScratch scratch = arena_scratch_begin();
     Str16 path_w32 = str16_from_8(scratch.arena, path);
@@ -126,19 +72,19 @@ OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
     if (flags & OS_ACCESS_FLAG_SHARE_WRITE) { share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE; }
     if (flags & OS_ACCESS_FLAG_APPEND) { access_flags &= ~GENERIC_WRITE; access_flags |= FILE_APPEND_DATA; creation_disposition = OPEN_ALWAYS; }
 
-    HANDLE file = CreateFile((WCHAR*)path_w32.data, access_flags, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
+    HANDLE file = CreateFileW((WCHAR*)path_w32.data, access_flags, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
     if (file != INVALID_HANDLE_VALUE)
         result.val[0] = (u64)file;
     arena_scratch_end(scratch);
     return result;
 }
 
-void os_file_close(OS_Handle handle) {
+function void os_file_close(OS_Handle handle) {
     if (handle.val[0])
         CloseHandle((HANDLE)handle.val[0]);
 }
 
-u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data) {
+function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data) {
     u64 total_read_size = 0;
 
     if (handle.val[0]) {
@@ -171,7 +117,7 @@ u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data) {
     return total_read_size;
 }
 
-u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data) {
+function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data) {
     u64 total_written = 0;
 
     if (handle.val[0] && end > begin) {
@@ -201,13 +147,13 @@ u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data) {
     return total_written;
 }
 
-u64 os_file_get_size(OS_Handle handle) {
+function u64 os_file_get_size(OS_Handle handle) {
     u64 size = 0;
     GetFileSizeEx((HANDLE)handle.val[0], (LARGE_INTEGER*)&size);
     return size;
 }
 
-u32 os_file_delete(Str8 path) {
+function u32 os_file_delete(Str8 path) {
     int max_retries = 5;
     int sleep_ms = 1;
 
@@ -226,7 +172,7 @@ u32 os_file_delete(Str8 path) {
     return 0;
 }
 
-u32 os_file_copy(Str8 src, Str8 dest) {
+function u32 os_file_copy(Str8 src, Str8 dest) {
     int max_retries = 5;
     int sleep_ms = 1;
 
@@ -246,7 +192,7 @@ u32 os_file_copy(Str8 src, Str8 dest) {
     return 0;
 }
 
-u32 os_file_move(Str8 src, Str8 dest) {
+function u32 os_file_move(Str8 src, Str8 dest) {
     int max_retries = 5;
     int sleep_ms = 1;
 
@@ -266,13 +212,13 @@ u32 os_file_move(Str8 src, Str8 dest) {
     return 0;
 }
 
-u32 os_file_path_exists(Str8 path) {
+function u32 os_file_path_exists(Str8 path) {
     DWORD attributes = GetFileAttributesA((char*)path.data);
     u32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && !!(~attributes & FILE_ATTRIBUTE_DIRECTORY);
     return exists;
 }
 
-u32 os_file_directory_exists(Str8 path) {
+function u32 os_file_directory_exists(Str8 path) {
     DWORD attributes = GetFileAttributesA((char*)path.data);
     u32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY);
     return exists;
@@ -374,7 +320,7 @@ function OS_FileEvent* os_file_watcher_poll_events(OS_FileWatcher* watcher, Aren
     return result_array;
 }
 
-void os_file_watcher_destroy(OS_FileWatcher* watcher) {
+function void os_file_watcher_destroy(OS_FileWatcher* watcher) {
     OS_Win32_FileWatcher* win32_watcher = (OS_Win32_FileWatcher*)watcher;
     debug_validate(win32_watcher);
     CloseHandle(win32_watcher->iocp);
@@ -382,7 +328,7 @@ void os_file_watcher_destroy(OS_FileWatcher* watcher) {
     win32_watcher = 0;
 }
 
-u64 os_get_ticks() {
+function u64 os_get_ticks() {
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
     return (u64)(counter.QuadPart);
@@ -398,6 +344,6 @@ function void os_lib_unload(OS_Handle handle) {
     FreeLibrary((HMODULE)handle.val[0]);
 }
 
-void* os_lib_get_symbol(OS_Handle lib, u8* name) {
+function void* os_lib_get_symbol(OS_Handle lib, u8* name) {
     return (void*)GetProcAddress((HMODULE)lib.val[0], (char*)name);
 }
