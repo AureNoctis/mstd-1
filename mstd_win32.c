@@ -35,6 +35,12 @@ function void os_attach_console_if_exists() {
         setvbuf(stdout, NULL, _IONBF, 0);
         setvbuf(stderr, NULL, _IONBF, 0);
     }
+
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD mode = 0;
+    GetConsoleMode(out, &mode);
+    mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(out, mode);
 }
 
 function void* os_mem_reserve(u64 size, u32 large_pages) {
