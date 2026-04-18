@@ -1,130 +1,91 @@
 #if !defined(MSTD_H)
 #define MSTD_H
 
-#define COMPILER_MSVC    0
-#define COMPILER_CLANG   0
-#define COMPILER_GCC     0
-
+// Compiler
 #if defined(_MSC_VER)
-#undef  COMPILER_MSVC
 #define COMPILER_MSVC  1
-#elif defined(__clang__)
-#undef  COMPILER_CLANG
+#else
+#define COMPILER_MSVC  0
+#endif
+
+#if defined(__clang__)
 #define COMPILER_CLANG 1
-#elif defined(__GNUC__)
-#undef  COMPILER_GCC
+#else
+#define COMPILER_CLANG 0
+#endif
+
+#if defined(__GNUC__)
 #define COMPILER_GCC   1
 #else
-#error "Unknown Compiler"
+#define COMPILER_GCC   0
 #endif
 
-#define OS_WINDOWS 0
-#define OS_LINUX   0
-#define OS_MAC     0
-
+// OS
 #if defined(_WIN32)
-#undef  OS_WINDOWS
 #define OS_WINDOWS 1
-#elif defined(__linux__)
-#undef  OS_LINUX
+#else
+#define OS_WINDOWS 0
+#endif
+
+#if defined(__linux__)
 #define OS_LINUX   1
-#elif defined(__APPLE__) && defined(__MACH__)
-#undef  OS_MAC
+#else
+#define OS_LINUX   0
+#endif
+
+#if defined(__APPLE__) && defined(__MACH__)
 #define OS_MAC     1
 #else
-#error "Unknown Operating System"
+#define OS_MAC     0
 #endif
 
-#define ARCH_X64   0
-#define ARCH_X86   0
-#define ARCH_ARM   0
-#define ARCH_ARM64 0
-
+// Architecture
 #if defined(_M_AMD64) || defined(__x86_64__) || defined(__amd64__)
-#undef  ARCH_X64
 #define ARCH_X64   1
-#elif defined(__aarch64__) || defined(_M_ARM64)
-#undef  ARCH_ARM64
+#else
+#define ARCH_X64   0
+#endif
+
+#if defined(__aarch64__) || defined(_M_ARM64)
 #define ARCH_ARM64 1
-#elif defined(_M_IX86) || defined(__i386__)
-#undef  ARCH_X86
+#else
+#define ARCH_ARM64 0
+#endif
+
+#if defined(_M_IX86) || defined(__i386__)
 #define ARCH_X86   1
-#elif defined(__arm__) || defined(_M_ARM)
-#undef  ARCH_ARM
+#else
+#define ARCH_X86   0
+#endif
+
+#if defined(__arm__) || defined(_M_ARM)
 #define ARCH_ARM   1
 #else
-#error "Unknown Architecture"
+#define ARCH_ARM   0
 #endif
 
-#define LANG_CXX 0
-#define LANG_C 0
-
+// Language
 #if defined(__cplusplus)
-#undef LANG_CXX
 #define LANG_CXX 1
 #else
-#undef LANG_C
 #define LANG_C 1
 #endif
 
-
 #if LANG_CXX
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstddef>
 extern "C" {
 #elif LANG_C
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>
 #endif
 
 #if COMPILER_MSVC
     #include <intrin.h>
-#endif
-
-////////////////////////////////
-// Macros: Memory
-
-#if defined(COMPILER_MSVC)
-    void* memmove(void* dest, const void* src, size_t count);
-    int memcmp(const void* buffer1, const void* buffer2, size_t count);
-    #pragma intrinsic(memcmp, memmove)
-    #define trap()                    __debugbreak()
-    #define mem_set(p, byte, size)    __stosb((PBYTE)(p), (BYTE)(byte), (size))
-    #define mem_copy(dest, src, size) __movsb((PBYTE)(dest), (PBYTE)(src), (size))
-    #define mem_move(dest, src, size) memmove((dest), (src), (size))
-    #define mem_match(a, b, size)     (memcmp((a), (b), (size)) == 0)
-#elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
-    #define trap()                    __builtin_trap()
-    #define mem_set(p, byte, size)    __builtin_memset((p), (byte), (size))
-    #define mem_copy(dest, src, size) __builtin_memcpy((dest), (src), (size))
-    #define mem_move(dest, src, size) __builtin_memmove((dest), (src), (size))
-    #define mem_match(a, b, size)     (__builtin_memcmp((a), (b), (size)) == 0)
-#else
-#error "mem_" functions not defined for this compiler.
-#endif
-
-#define mem_zero(mem, size)                 mem_set((mem), 0, (size))
-#define mem_zero_struct(mem)                mem_zero((mem), sizeof(*(mem)))
-#define mem_zero_array(mem, count)          mem_zero((mem), sizeof(*(mem)) * (count))
-#define mem_copy_struct(dest, src)          mem_copy((dest), (src), sizeof(*(dest)))
-#define mem_copy_array(dest, src, count)    mem_copy((dest), (src), sizeof(*(dest)) * (count))
-#define mem_move_struct(dest, src)          mem_move((dest), (src), sizeof(*(dest)))
-#define mem_move_array(dest, src, count)    mem_move((dest), (src), sizeof(*(dest)) * (count))
-
-#if COMPILER_MSVC
-#define mem_align_of(T) __alignof(T)
-#elif COMPILER_CLANG
-#define mem_align_of(T) __alignof(T)
-#elif COMPILER_GCC
-#define mem_align_of(T) __alignof__(T)
-#else
-#error AlignOf not defined for this compiler.
-#endif
-
-#if COMPILER_MSVC
-#define mem_align_to(x) __declspec(align(x))
-#elif COMPILER_CLANG || COMPILER_GCC
-#define mem_align_to(x) __attribute__((aligned(x)))
-#else
-#error AlignType not defined for this compiler.
 #endif
 
 ////////////////////////////////
@@ -266,32 +227,55 @@ function force_inline u64 u64_rotl(u64 x, i8 s);
 function force_inline u64 u64_rotr(u64 x, i8 s);
 
 ////////////////////////////////
+// Macros: Memory
+
+#if defined(COMPILER_MSVC)
+    void* memmove(void* dest, const void* src, size_t count);
+    int memcmp(const void* buffer1, const void* buffer2, size_t count);
+    #pragma intrinsic(memcmp, memmove)
+    #define trap()                    __debugbreak()
+    #define mem_set(p, byte, size)    __stosb((u8*)(p), (u8)(byte), (size))
+    #define mem_copy(dest, src, size) __movsb((u8*)(dest), (u8*)(src), (size))
+    #define mem_move(dest, src, size) memmove((dest), (src), (size))
+    #define mem_match(a, b, size)     (memcmp((a), (b), (size)) == 0)
+#elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+    #define trap()                    __builtin_trap()
+    #define mem_set(p, byte, size)    __builtin_memset((p), (byte), (size))
+    #define mem_copy(dest, src, size) __builtin_memcpy((dest), (src), (size))
+    #define mem_move(dest, src, size) __builtin_memmove((dest), (src), (size))
+    #define mem_match(a, b, size)     (__builtin_memcmp((a), (b), (size)) == 0)
+#else
+#error "mem_" functions not defined for this compiler.
+#endif
+
+#define mem_zero(mem, size)                 mem_set((mem), 0, (size))
+#define mem_zero_struct(mem)                mem_zero((mem), sizeof(*(mem)))
+#define mem_zero_array(mem, count)          mem_zero((mem), sizeof(*(mem)) * (count))
+#define mem_copy_struct(dest, src)          mem_copy((dest), (src), sizeof(*(dest)))
+#define mem_copy_array(dest, src, count)    mem_copy((dest), (src), sizeof(*(dest)) * (count))
+#define mem_move_struct(dest, src)          mem_move((dest), (src), sizeof(*(dest)))
+#define mem_move_array(dest, src, count)    mem_move((dest), (src), sizeof(*(dest)) * (count))
+
+#if COMPILER_MSVC
+#define mem_align_of(T) __alignof(T)
+#elif COMPILER_CLANG
+#define mem_align_of(T) __alignof(T)
+#elif COMPILER_GCC
+#define mem_align_of(T) __alignof__(T)
+#else
+#error AlignOf not defined for this compiler.
+#endif
+
+#if COMPILER_MSVC
+#define mem_align_to(x) __declspec(align(x))
+#elif COMPILER_CLANG || COMPILER_GCC
+#define mem_align_to(x) __attribute__((aligned(x)))
+#else
+#error AlignType not defined for this compiler.
+#endif
+
+////////////////////////////////
 // Linked List
-
-#define SLL_STRUCT_GEN(ListType, NodeType, Data)                        \
-    typedef struct NodeType NodeType;                                   \
-    struct NodeType {                                                   \
-        Data data;                                                      \
-        NodeType* next;                                                 \
-    };                                                                  \
-                                                                        \
-    typedef struct ListType ListType;                                   \
-    struct ListType {                                                   \
-        NodeType* head;                                                 \
-        NodeType* tail;                                                 \
-    };
-
-#define DLL_STRUCT_GEN(ListType, NodeType, Data)                        \
-    typedef struct NodeType {                                           \
-        Data data;                                                      \
-        NodeType* next;                                                 \
-        NodeType* prev;                                                 \
-    }NodeType;                                                          \
-                                                                        \
-    typedef struct ListType {                                           \
-        NodeType* head;                                                 \
-        NodeType* tail;                                                 \
-    } ListType;
 
 #define dll_push_back_np(head, tail, node, next, prev) (                \
     (head) == 0 ?                                                       \
@@ -517,16 +501,6 @@ function Str32 str32_from_8(Arena* arena, Str8 text);
 function Str8 str8_copy(Arena* arena, Str8 text);
 function Str16 str16_copy(Arena* arena, Str16 text);
 
-function u64 str8_find_first(Str8 sub_str, Str8 data);
-function u64 str8_find_last(Str8 sub_str, Str8 data);
-
-////////////////////////////////
-// Types: Str8List
-SLL_STRUCT_GEN(Str8List, Str8Node, Str8)
-
-function void str8_list_push(Arena* arena, Str8List* list, Str8 data);
-function Str8 str8_list_join(Arena* arena, Str8List* list);
-
 ////////////////////////////////
 // OS: Core
 
@@ -545,26 +519,25 @@ struct OS_ProcessInfo {
     Str8 current_working_directory;
 };
 
-typedef struct OS_Handle OS_Handle;
-struct OS_Handle {
+typedef struct OSHandle OSHandle;
+struct OSHandle {
     u64 val[1];
 };
 
-function u64 os_get_page_size();
-function u64 os_get_large_page_size();
-function u64 os_get_resolution_us();
-function u64 os_get_ticks();
+function OSHandle os_lib_load(u8* name);
+function void os_lib_unload(OSHandle handle);
+function void* os_lib_get_symbol(OSHandle lib, u8* name);
 
-function OS_Handle os_lib_load(u8* name);
-function void os_lib_unload(OS_Handle handle);
-function void* os_lib_get_symbol(OS_Handle lib, u8* name);
-
-function void os_attach_console_if_exists();
+function void os_cli_attach_if_exists();
 
 function void* os_mem_reserve(u64 size, u32 large_pages);
 function u8 os_mem_commit(void* ptr, u64 size, u32 large_pages);
 function void os_mem_decommit(void* ptr, u64 size);
 function void os_mem_release(void* ptr, u64 size);
+function u64 os_mem_page_size();
+function u64 os_mem_large_page_size();
+function u64 os_resolution_us();
+function u64 os_ticks_now();
 
 typedef enum OS_AccessFlag OS_AccessFlag;
 enum OS_AccessFlag {
@@ -597,20 +570,20 @@ struct OS_FileEvent {
 typedef struct OS_Win32_FileWatcher OS_FileWatcher;
 #endif
 
-function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path);
-function void os_file_close(OS_Handle handle);
-function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data);
+function OSHandle os_file_open(OS_AccessFlag flags, Str8 path);
+function void os_file_close(OSHandle handle);
+function u64 os_file_read(OSHandle handle, u64 begin, u64 end, void* out_data);
 #define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
-function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data);
+function u64 os_file_write(OSHandle handle, u64 begin, u64 end, void* data);
 #define os_file_write_struct(handle, offset, struct_ptr) os_file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
 #define os_file_write_string(handle, str) os_file_write((handle), 0, str.size, str.data)
 
 
 function u32 os_file_delete(Str8 path);
-function u64 os_file_get_size(OS_Handle handle);
+function u64 os_file_get_size(OSHandle handle);
 function u32 os_file_copy(Str8 src, Str8 dest);
 function u32 os_file_move(Str8 src, Str8 dest);
-function u32 os_file_path_exists(Str8 path);
+function u32 os_file_exists(Str8 path);
 function u32 os_file_directory_exists(Str8 path);
 
 function OS_FileWatcher os_file_watcher_create(Str8 path, u32 watch_sub_directory);
@@ -652,6 +625,16 @@ struct DArrayMetaData {
 };
 
 function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
+
+//////////////////////////////
+// File API
+
+#define file_open               os_file_open
+#define file_close              os_file_close
+#define file_size               os_file_get_size
+#define file_delete             os_file_delete
+#define file_exists             os_file_exists
+#define file_directory_exists   os_file_directory_exists
 
 //////////////////////////////
 // MX
