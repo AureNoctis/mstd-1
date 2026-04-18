@@ -1,5 +1,3 @@
-#include "mstd.h"
-
 #if OS_WINDOWS
 #include "mstd_win32.c"
 
@@ -147,7 +145,7 @@ function void arena_scratch_end(ArenaScratch scratch) {
         __arena_scratch_available_mask |= (u8)(1u << scratch.index);
 }
 
-internal force_inline u64 str8_get_length_from_cstr(u8* data) {
+internal function force_inline u64 str8_get_length_from_cstr(u8* data) {
     u64 i = 0;
     for(; data[i] != 0; i++) {}
     return(i);

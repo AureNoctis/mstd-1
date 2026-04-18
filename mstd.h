@@ -174,6 +174,7 @@ typedef int8_t   i8;
 typedef int16_t  i16;
 typedef int32_t  i32;
 typedef int64_t  i64;
+
 typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -433,14 +434,13 @@ struct UnicodeDecode {
     u32 codepoint;
 };
 
-typedef enum CharType CharType;
-enum CharType {
+typedef enum CharType {
     CHAR_TYPE_SPACE   = (1 << 0), // 0x01
     CHAR_TYPE_UPPER   = (1 << 1), // 0x02
     CHAR_TYPE_LOWER   = (1 << 2), // 0x04
     CHAR_TYPE_DIGIT10 = (1 << 3), // 0x08
     CHAR_TYPE_DIGIT16 = (1 << 4), // 0x10
-};
+}CharType;
 
 mem_align_to(64) global u8 ASCII_LUT[256] = {
     /* 0x00 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, 0, 0,
@@ -539,8 +539,7 @@ function u64 os_mem_large_page_size();
 function u64 os_resolution_us();
 function u64 os_ticks_now();
 
-typedef enum OS_AccessFlag OS_AccessFlag;
-enum OS_AccessFlag {
+typedef enum OS_AccessFlag {
     OS_ACCESS_FLAG_OPEN_EXISTING  = 1 << 0,
     OS_ACCESS_FLAG_OPEN_ALWAYS    = 1 << 1,
     OS_ACCESS_FLAG_SHARE_READ     = 1 << 2,
@@ -549,16 +548,15 @@ enum OS_AccessFlag {
     OS_ACCESS_FLAG_READ           = 1 << 6,
     OS_ACCESS_FLAG_WRITE          = 1 << 7,
     OS_ACCESS_FLAG_APPEND         = 1 << 8
-};
+}OS_AccessFlag;
 
-typedef enum OS_FileEventType OS_FileEventType;
-enum OS_FileEventType {
+typedef enum OS_FileEventType {
     OS_FILE_EVENT_TYPE_NULL,
     OS_FILE_EVENT_TYPE_MODIFIED,
     OS_FILE_EVENT_TYPE_ADDED,
     OS_FILE_EVENT_TYPE_DELETED,
     OS_FILE_EVENT_TYPE_RENAMED,
-};
+}OS_FileEventType;
 
 typedef struct OS_FileEvent OS_FileEvent;
 struct OS_FileEvent {
