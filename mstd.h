@@ -488,7 +488,7 @@ mem_align_to(64) global u8 ASCII_LUT[256] = {
 function Str8 str8_from_cstr(u8* str);
 #define str8(literal)  str8_from_cstr((u8*)literal)
 
-internal function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
+function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
 #define str8_from_fmt(arena, fmt, ...) _str8_from_fmt(arena, (u8*)fmt, ##__VA_ARGS__)
 
 function Str8 str8_of_size(Arena* arena, u64 size);

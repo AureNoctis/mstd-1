@@ -149,7 +149,7 @@ function void arena_scratch_end(ArenaScratch scratch) {
 
 internal force_inline u64 str8_get_length_from_cstr(u8* data) {
     u64 i = 0;
-    for(i; data[i] != 0; i++) {}
+    for(; data[i] != 0; i++) {}
     return(i);
 }
 
@@ -232,7 +232,7 @@ function u8 str8_equal(Str8 a, Str8 b) {
 
 internal force_inline u64 str16_get_length_from_cstr(u16* data) {
     u64 i = 0;
-    for(i; data[i] != 0; i++) {}
+    for(; data[i] != 0; i++) {}
     return(i);
 }
 
