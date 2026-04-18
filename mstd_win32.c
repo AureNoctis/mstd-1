@@ -1,70 +1,14 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include <direct.h>
-#include <stdio.h>
-#include <io.h>
-#include "mstd.h"
 
 #pragma comment(lib, "user32")
 #pragma comment(lib, "advapi32")
 
-function u64 os_get_resolution_us() {
-    LARGE_INTEGER resolution;
-    if (QueryPerformanceFrequency(&resolution))
-        return (resolution.QuadPart);
-    return 1;
-}
+////////////////////////////////
+// IO: File
 
-function u64 os_get_page_size() {
-    SYSTEM_INFO sysinfo = { 0 };
-    GetSystemInfo(&sysinfo);
-    return sysinfo.dwPageSize;
-}
-
-function u64 os_get_large_page_size() {
-    return GetLargePageMinimum();
-}
-
-function void os_attach_console_if_exists() {
-    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-        FILE* dummy;
-        freopen_s(&dummy, "CONOUT$", "w", stdout);
-        freopen_s(&dummy, "CONOUT$", "w", stderr);
-        freopen_s(&dummy, "CONIN$", "r", stdin);
-
-        setvbuf(stdout, NULL, _IONBF, 0);
-        setvbuf(stderr, NULL, _IONBF, 0);
-    }
-
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD mode = 0;
-    GetConsoleMode(out, &mode);
-    mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    SetConsoleMode(out, mode);
-}
-
-function void* os_mem_reserve(u64 size, u32 large_pages) {
-    void* result = (large_pages) ? VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE)
-        : VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
-    return result;
-}
-
-u8 os_mem_commit(void* ptr, u64 size, u32 large_pages) {
-    u8 result = (large_pages) ? 1 : (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != NULL);
-    return result;
-}
-
-void os_mem_decommit(void* ptr, u64 size) {
-    VirtualFree(ptr, size, MEM_DECOMMIT);
-}
-
-function void os_mem_release(void* ptr, u64 size) {
-    (void)size;
-    VirtualFree(ptr, 0, MEM_RELEASE);
-}
-
-function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
-    OS_Handle result = { 0 };
+function OSHandle os_file_open(OS_AccessFlag flags, Str8 path) {
+    OSHandle result = { 0 };
     ArenaScratch scratch = arena_scratch_begin();
     Str16 path_w32 = str16_from_8(scratch.arena, path);
     DWORD access_flags = 0;
@@ -85,12 +29,12 @@ function OS_Handle os_file_open(OS_AccessFlag flags, Str8 path) {
     return result;
 }
 
-function void os_file_close(OS_Handle handle) {
+function void os_file_close(OSHandle handle) {
     if (handle.val[0])
         CloseHandle((HANDLE)handle.val[0]);
 }
 
-function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data) {
+function u64 os_file_read(OSHandle handle, u64 begin, u64 end, void* out_data) {
     u64 total_read_size = 0;
 
     if (handle.val[0]) {
@@ -123,7 +67,7 @@ function u64 os_file_read(OS_Handle handle, u64 begin, u64 end, void* out_data) 
     return total_read_size;
 }
 
-function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data) {
+function u64 os_file_write(OSHandle handle, u64 begin, u64 end, void* data) {
     u64 total_written = 0;
 
     if (handle.val[0] && end > begin) {
@@ -153,7 +97,7 @@ function u64 os_file_write(OS_Handle handle, u64 begin, u64 end, void* data) {
     return total_written;
 }
 
-function u64 os_file_get_size(OS_Handle handle) {
+function u64 os_file_get_size(OSHandle handle) {
     u64 size = 0;
     GetFileSizeEx((HANDLE)handle.val[0], (LARGE_INTEGER*)&size);
     return size;
@@ -218,7 +162,7 @@ function u32 os_file_move(Str8 src, Str8 dest) {
     return 0;
 }
 
-function u32 os_file_path_exists(Str8 path) {
+function u32 os_file_exists(Str8 path) {
     DWORD attributes = GetFileAttributesA((char*)path.data);
     u32 exists = (attributes != INVALID_FILE_ATTRIBUTES) && !!(~attributes & FILE_ATTRIBUTE_DIRECTORY);
     return exists;
@@ -334,22 +278,98 @@ function void os_file_watcher_destroy(OS_FileWatcher* watcher) {
     win32_watcher = 0;
 }
 
-function u64 os_get_ticks() {
+////////////////////////////////
+// IO: Lib
+
+
+function OSHandle os_lib_load(u8* name) {
+    OSHandle handle = {0};
+    HMODULE module = LoadLibraryA((LPCSTR)name);
+    debug_validate(module);
+    handle.val[0] = (u64)module;
+    return handle;
+}
+
+function void os_lib_unload(OSHandle handle) {
+    FreeLibrary((HMODULE)handle.val[0]);
+}
+
+function void* os_lib_get_symbol(OSHandle lib, u8* name) {
+    return (void*)GetProcAddress((HMODULE)lib.val[0], (char*)name);
+}
+
+
+////////////////////////////////
+// IO: CLI
+
+function void os_cli_attach_if_exists() {
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        HANDLE hOut = CreateFileA("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+        HANDLE hIn  = CreateFileA("CONIN$",  GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,  NULL, OPEN_EXISTING, 0, NULL);
+
+        debug_validate(hOut != INVALID_HANDLE_VALUE);
+        debug_validate(hIn != INVALID_HANDLE_VALUE);
+
+        SetStdHandle(STD_OUTPUT_HANDLE, hOut);
+        SetStdHandle(STD_ERROR_HANDLE,  hOut);
+        SetStdHandle(STD_INPUT_HANDLE,  hIn);
+
+        FILE* dummy;
+        freopen_s(&dummy, "CONOUT$", "w", stdout);
+        freopen_s(&dummy, "CONOUT$", "w", stderr);
+        freopen_s(&dummy, "CONIN$",  "r", stdin);
+
+        DWORD mode = 0;
+        if (GetConsoleMode(hOut, &mode)) {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            SetConsoleMode(hOut, mode);
+        }
+    }
+}
+
+////////////////////////////////
+// OS: MEMORY
+
+function u64 os_mem_page_size() {
+    SYSTEM_INFO sysinfo = { 0 };
+    GetSystemInfo(&sysinfo);
+    return sysinfo.dwPageSize;
+}
+
+function u64 os_mem_large_page_size() {
+    return GetLargePageMinimum();
+}
+
+function void* os_mem_reserve(u64 size, u32 large_pages) {
+    void* result = (large_pages) ? VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES, PAGE_READWRITE)
+        : VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
+    return result;
+}
+
+function u8 os_mem_commit(void* ptr, u64 size, u32 large_pages) {
+    u8 result = (large_pages) ? 1 : (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != NULL);
+    return result;
+}
+
+function void os_mem_decommit(void* ptr, u64 size) {
+    VirtualFree(ptr, size, MEM_DECOMMIT);
+}
+
+function void os_mem_release(void* ptr, u64 size) {
+    (void)size;
+    VirtualFree(ptr, 0, MEM_RELEASE);
+}
+
+
+function u64 os_ticks_now() {
     LARGE_INTEGER counter;
     QueryPerformanceCounter(&counter);
     return (u64)(counter.QuadPart);
 }
 
-function OS_Handle os_lib_load(u8* name) {
-    OS_Handle handle;
-    handle.val[0] = (u64)LoadLibraryA((char*)name);
-    return handle;
-}
-
-function void os_lib_unload(OS_Handle handle) {
-    FreeLibrary((HMODULE)handle.val[0]);
-}
-
-function void* os_lib_get_symbol(OS_Handle lib, u8* name) {
-    return (void*)GetProcAddress((HMODULE)lib.val[0], (char*)name);
+function u64 os_resolution_us() {
+    LARGE_INTEGER resolution;
+    if (QueryPerformanceFrequency(&resolution))
+        return (resolution.QuadPart);
+    return 1;
 }
