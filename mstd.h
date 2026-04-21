@@ -76,12 +76,14 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstddef>
+#include <cstdarg>
 extern "C" {
 #elif LANG_C
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdarg.h>
 #endif
 
 #if COMPILER_MSVC
@@ -89,7 +91,7 @@ extern "C" {
 #endif
 
 ////////////////////////////////
-// Macros: Helpers
+// Keywords, Tags
 
 #if COMPILER_MSVC
 #define force_inline __forceinline
@@ -107,36 +109,6 @@ extern "C" {
 #error no_inline not defined for this compiler.
 #endif
 
-#define _TO_STRING(S) #S
-#define TO_STRING(S) _TO_STRING(S)
-
-#define _JOIN(a, b) a##b
-#define JOIN(a, b) _JOIN(a, b)
-
-#define global static
-#define function
-#define internal static
-
-#define is_pow2(x)                  ((x) != 0 && (((x) & ((x) - 1)) == 0))
-#define is_pow2_or_zero(x)          (((x) & ((x) - 1)) == 0)
-
-#define align_up_pow2(x, p)         (((x) + ((p) - 1)) & ~((p) - 1))
-#define align_down_pow2(x, p)       ((x) & ~((p) - 1))
-
-#define KB(x) ((x) << 10)
-#define MB(x) ((x) << 20)
-#define GB(x) ((x) << 30)
-#define TB(x) ((x) << 40)
-
-#define clamp_top(val, high)        (((val) < (high)) ? (val) : (high))
-#define clamp_bottom(val, low)      (((val) > (low)) ? (val) : (low))
-#define clamp(val, low, high)       (clamp_bottom(low, clamp_top(val, high)))
-
-#define bit(x) (1ULL << x)
-
-////////////////////////////////
-// Type: Therads
-
 #if COMPILER_MSVC
 #define thread_var __declspec(thread)
 #elif COMPILER_CLANG || COMPILER_GCC
@@ -145,40 +117,55 @@ extern "C" {
 #error thread_var not defined for this compiler
 #endif
 
-////////////////////////////////
-// Macros: Debug
-
-#if defined(COMPILER_MSVC)
-    #define trap()                    __debugbreak()
-#elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
-    #define trap()                    __builtin_trap()
-#endif
-
-#if MSTD_DEBUG
-    #define debug_trap_code_if(code, op, check) while((code) op (check)) { trap(); }
-    #define debug_trap_if(condition)            while(condition) { trap(); }
-    #define DEBUG_TRUE 1
-#else
-    #define debug_trap_code_if(code, op, check) ((void)(code))
-    #define debug_trap_if(condition)
-    #define DEBUG_TRUE 0
-#endif
-
-#define debug_validate_code(code, check)        debug_trap_code_if(code, !=, check)
-#define debug_validate(condition)               debug_trap_if(!(condition))
+#define global static
+#define function
+#define internal static
 
 ////////////////////////////////
-// Types: Basic
+// Utils
+
+#define ___STRING___(S) #S
+#define __STRING__(S) ___STRING___(S)
+
+#define ___JOIN___(a, b) a##b
+#define __JOIN__(a, b) ___JOIN___(a, b)
+
+#define bit(x) (1ULL << x)
+
+////////////////////////////////
+// Base Types
 
 typedef int8_t   i8;
+#define i8_min INT8_MIN
+#define i8_max INT8_MAX
+
 typedef int16_t  i16;
+#define i16_min INT16_MIN
+#define i16_max INT16_MAX
+
 typedef int32_t  i32;
+#define i32_min INT32_MIN
+#define i32_max INT32_MAX
+
 typedef int64_t  i64;
+#define i64_min INT64_MIN
+#define i64_max INT64_MAX
 
 typedef uint8_t  u8;
+#define u8_min UINT8_MIN
+#define u8_max UINT8_MAX
+
 typedef uint16_t u16;
+#define u16_min UINT16_MIN
+#define u16_max UINT16_MAX
+
 typedef uint32_t u32;
+#define u32_min UINT32_MIN
+#define u32_max UINT32_MAX
+
 typedef uint64_t u64;
+#define u64_min UINT64_MIN
+#define u64_max UINT64_MAX
 
 typedef float  f32;
 typedef double f64;
@@ -224,11 +211,54 @@ static function force_inline i8 u64_lsb(u64 x) { unsigned long where; return _Bi
 
 #endif
 
-function force_inline u64 u64_rotl(u64 x, i8 s);
-function force_inline u64 u64_rotr(u64 x, i8 s);
+typedef struct Handle {
+    u64 val[1];
+}Handle;
 
 ////////////////////////////////
-// Macros: Memory
+// MATH
+
+#define is_pow2(x)                  ((x) != 0 && (((x) & ((x) - 1)) == 0))
+#define is_pow2_or_zero(x)          (((x) & ((x) - 1)) == 0)
+
+#define align_up_pow2(x, p)         (((x) + ((p) - 1)) & ~((p) - 1))
+#define align_down_pow2(x, p)       ((x) & ~((p) - 1))
+
+#define KB(x) ((x) << 10)
+#define MB(x) ((x) << 20)
+#define GB(x) ((x) << 30)
+#define TB(x) ((x) << 40)
+
+#define clamp_top(val, high)        (((val) < (high)) ? (val) : (high))
+#define clamp_bottom(val, low)      (((val) > (low)) ? (val) : (low))
+#define clamp(val, low, high)       (clamp_bottom(low, clamp_top(val, high)))
+
+////////////////////////////////
+// Module: Debug
+
+// TODO: mem leak debugger
+
+#if defined(COMPILER_MSVC)
+    #define trap()                    __debugbreak()
+#elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+    #define trap()                    __builtin_trap()
+#endif
+
+#if MSTD_DEBUG
+    #define debug_trap_code_if(code, op, check) while((code) op (check)) { trap(); }
+    #define debug_trap_if(condition)            while(condition) { trap(); }
+    #define DEBUG_TRUE 1
+#else
+    #define debug_trap_code_if(code, op, check) ((void)(code))
+    #define debug_trap_if(condition)
+    #define DEBUG_TRUE 0
+#endif
+
+#define debug_validate_code(code, check)        debug_trap_code_if(code, !=, check)
+#define debug_validate(condition)               debug_trap_if(!(condition))
+
+////////////////////////////////
+// Module: Memory
 
 #if defined(COMPILER_MSVC)
     void* memmove(void* dest, const void* src, size_t count);
@@ -275,8 +305,17 @@ function force_inline u64 u64_rotr(u64 x, i8 s);
 #error AlignType not defined for this compiler.
 #endif
 
+
+function void* mem_reserve(u64 size, u32 large_pages);
+function u8 mem_commit(void* ptr, u64 size, u32 large_pages);
+function void mem_decommit(void* ptr, u64 size);
+function void mem_release(void* ptr, u64 size);
+
+function u64 mem_page_size();
+function u64 mem_large_page_size();
+
 ////////////////////////////////
-// Linked List
+// DS: LinkList
 
 #define dll_push_back_np(head, tail, node, next, prev) (                \
     (head) == 0 ?                                                       \
@@ -355,103 +394,83 @@ function force_inline u64 u64_rotr(u64 x, i8 s);
 #define sll_queue_pop(head, tail)        sll_pop_front(head, tail)
 
 ////////////////////////////////
-// Types: Arena
+// Module: Arena
 
-#define ARENA_DEFAULT_COMMIT_SIZE MB(4)
-#define ARENA_DEFAULT_RESERVE_SIZE MB(64)
+typedef struct ArenaTempNode {
+    struct ArenaTempNode* next;
+}ArenaTempNode;
 
-typedef struct Arena Arena;
-struct Arena {
+typedef struct Arena {
     u64 cursor;
     u64 committed;
     u64 reserved;
-    u32 commit_large_pages;
+    ArenaTempNode* temp_stack_tail;
+    ArenaTempNode* temp_stack_head;
     u32 page_size;
-};
+    u8 can_commit_large_pages;
+}Arena;
+
 
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
-typedef struct ArenaTemp ArenaTemp;
-struct ArenaTemp {
-    Arena* arena;
-    union {
-        u64 cursor;
-        u64 index;
-    };
-};
-
-typedef ArenaTemp ArenaScratch;
-
-function Arena* arena_alloc(u64 reserve_size, u32 commit_large_pages);
+function Arena* arena_alloc(u64 reserve_size, u32 can_commit_large_pages);
+function void arena_release(Arena* arena);
+function void arena_reset(Arena* arena);
 
 function void* arena_push(Arena* arena, u64 size, u64 align);
 #define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), mem_align_of(T))
 #define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), mem_align_of(T))
 
-function void arena_reset(Arena* arena);
-function void arena_release(Arena *arena);
+function void arena_temp_push(Arena* arena);
+function void arena_temp_pop(Arena* arena);
+function void arena_temp_pop_all(Arena* arena);
 
-/// @brief This function can have 0 passed as param which causes it to create a TLS scratch arena.
-ArenaTemp arena_temp_begin(Arena* arena);
-function void arena_temp_end(ArenaTemp temp);
-
-/// @brief defines a loop which will run once. use { //code  } just after it.
-#define arena_temp_scope(temp_arena) for (ArenaTemp _temp = arena_temp_begin(temp_arena); _temp.arena != NULL; arena_temp_end(_temp), _temp.arena = NULL)
-
-ArenaScratch arena_scratch_begin();
-function void arena_scratch_end(ArenaScratch scratch);
-
-/// @brief defines a loop which will run once. use { //code  } just after it.
-/// @param scratch - name you pass should be used in the scope
-#define arena_scratch_scope(scratch) for (ArenaScratch scratch = arena_scratch_begin(); scratch.arena != NULL; arena_scratch_end(scratch), scratch.arena.arena = NULL)
+function Arena* arena_scratch_alloc();
+function void arena_scratch_release(Arena* arena);
 
 ////////////////////////////////
-// Types: Str8, Str16, Str32
+// Strings
 
-#define STR_NPOS UINT64_MAX
+#define str_npos (u64)(-1)
 
-typedef struct Str8 Str8;
-struct Str8 {
+typedef struct Str8 {
     u8* data;
     u64 size;
-};
+}Str8;
 
-typedef struct Str16 Str16;
-struct Str16 {
+typedef struct Str16 {
     u16* data;
     u64 size;
-};
+}Str16;
 
-typedef struct Str32 Str32;
-struct Str32 {
+typedef struct Str32 {
     u32* data;
     u64 size;
-};
+}Str32;
 
-typedef struct UnicodeDecode UnicodeDecode;
-struct UnicodeDecode {
+typedef struct UnicodeDecode {
     u32 inc;
     u32 codepoint;
-};
+}UnicodeDecode;
 
 typedef enum CharType {
-    CHAR_TYPE_SPACE   = (1 << 0), // 0x01
-    CHAR_TYPE_UPPER   = (1 << 1), // 0x02
-    CHAR_TYPE_LOWER   = (1 << 2), // 0x04
-    CHAR_TYPE_DIGIT10 = (1 << 3), // 0x08
-    CHAR_TYPE_DIGIT16 = (1 << 4), // 0x10
+    CHAR_TYPE_SPACE     = (1 << 0),
+    CHAR_TYPE_UPPER     = (1 << 1),
+    CHAR_TYPE_LOWER     = (1 << 2),
+    CHAR_TYPE_DIGIT10   = (1 << 3),
+    CHAR_TYPE_DIGIT16   = (1 << 4)
 }CharType;
 
 mem_align_to(64) global u8 ASCII_LUT[256] = {
-    /* 0x00 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, 0, 0,
-    /* 0x10 */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    /* 0x20 */ CHAR_TYPE_SPACE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    /* 0x30 */ (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), 0, 0, 0, 0, 0, 0,
-    /* 0x40 */ 0, (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER,
-    /* 0x50 */ CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, 0, 0, 0, 0, 0,
-    /* 0x60 */ 0, (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER,
-    /* 0x70 */ CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, 0, 0, 0, 0, 0,
-    /* 0x80 - 0xFF: Padding remaining 128 bytes with zeros */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    CHAR_TYPE_SPACE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), 0, 0, 0, 0, 0, 0,
+    0, (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER,
+    CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, 0, 0, 0, 0, 0,
+    0, (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER,
+    CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, 0, 0, 0, 0, 0,
+
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -470,16 +489,23 @@ mem_align_to(64) global u8 ASCII_LUT[256] = {
 #define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
 
 function Str8 str8_from_cstr(u8* str);
-#define str8(literal)  str8_from_cstr((u8*)literal)
-
-function Str8 _str8_from_fmt(Arena* arena, u8* fmt, ...);
-#define str8_from_fmt(arena, fmt, ...) _str8_from_fmt(arena, (u8*)fmt, ##__VA_ARGS__)
-
+#define str8(str) str8_from_cstr((u8*)str)
 function Str8 str8_of_size(Arena* arena, u64 size);
-function Str16 str16_of_size(Arena* arena, u64 size);
-
+function Str8 str8_from_fmt(Arena *arena, const char *fmt, ...);
 function Str8 str8_concat(Arena* arena, Str8 a, Str8 b);
+function Str8 __str8_concat_n(Arena* arena, ...);
+#define str8_concat_n(arena, ...) __str8_concat_n(arena, __VA_ARGS__, (Str8){.size = str_npos})
+function void str8_to_lower(Str8 str);
+function void str8_to_upper(Str8 str);
+function u8 str8_match(Str8 a, Str8 b);
+function Str8 str8_copy(Arena* arena, Str8 str);
+
+function Str16 str16_from_cstr(u16* str);
+#define str16 str16_from_cstr
+function Str16 str16_of_size(Arena* arena, u64 size);
 function Str16 str16_concat(Arena* arena, Str16 a, Str16 b);
+function u8 str16_match(Str16 a, Str16 b);
+function Str16 str16_copy(Arena* arena, Str16 str);
 
 function UnicodeDecode utf8_decode(u8* str, u64 max);
 function UnicodeDecode utf16_decode(u16* str, u64 max);
@@ -488,127 +514,103 @@ function u32 utf16_encode(u16* str, u32 codepoint);
 function u32 utf8_size(u32 cp);
 function u32 utf16_size(u32 cp);
 
-function void str8_to_lower(Str8 text);
-function void str8_to_upper(Str8 text);
-function u8 str8_equal(Str8 a, Str8 b);
-function Str16 str16_from_cstr(u16* str);
-#define str16(literal) str16_from_cstr((u16*)literal)
-function u8 str16_equal(Str16 a, Str16 b);
-function Str8 str8_from_16(Arena* arena, Str16 text);
-function Str16 str16_from_8(Arena* arena, Str8 text);
-function Str8 str8_from_32(Arena* arena, Str32 text);
-function Str32 str32_from_8(Arena* arena, Str8 text);
-function Str8 str8_copy(Arena* arena, Str8 text);
-function Str16 str16_copy(Arena* arena, Str16 text);
+function Str8 str8_from_16(Arena* arena, Str16 str);
+function Str8 str8_from_32(Arena* arena, Str32 str);
+
+function Str16 str16_from_8(Arena* arena, Str8 str);
+
+function Str32 str32_from_8(Arena* arena, Str8 str);
 
 ////////////////////////////////
-// OS: Core
+// Module: CLI
 
-typedef struct OS_SystemInfo OS_SystemInfo;
-struct OS_SystemInfo {
-    u32 logical_processor_count;
-    u64 page_size;
-    u64 large_page_size;
-    u64 allocation_granularity;
-};
-
-typedef struct OS_ProcessInfo OS_ProcessInfo;
-struct OS_ProcessInfo {
-    u32 id;
-    u32 large_pages_allowed;
-    Str8 current_working_directory;
-};
-
-typedef struct OSHandle OSHandle;
-struct OSHandle {
-    u64 val[1];
-};
-
-function OSHandle os_lib_load(u8* name);
-function void os_lib_unload(OSHandle handle);
-function void* os_lib_get_symbol(OSHandle lib, u8* name);
-
-function void os_cli_attach_if_exists();
-
-function void* os_mem_reserve(u64 size, u32 large_pages);
-function u8 os_mem_commit(void* ptr, u64 size, u32 large_pages);
-function void os_mem_decommit(void* ptr, u64 size);
-function void os_mem_release(void* ptr, u64 size);
-function u64 os_mem_page_size();
-function u64 os_mem_large_page_size();
-function u64 os_resolution_us();
-function u64 os_ticks_now();
-
-typedef enum OS_AccessFlag {
-    OS_ACCESS_FLAG_OPEN_EXISTING  = 1 << 0,
-    OS_ACCESS_FLAG_OPEN_ALWAYS    = 1 << 1,
-    OS_ACCESS_FLAG_SHARE_READ     = 1 << 2,
-    OS_ACCESS_FLAG_SHARE_WRITE    = 1 << 3,
-    OS_ACCESS_FLAG_EXECUTE        = 1 << 5,
-    OS_ACCESS_FLAG_READ           = 1 << 6,
-    OS_ACCESS_FLAG_WRITE          = 1 << 7,
-    OS_ACCESS_FLAG_APPEND         = 1 << 8
-}OS_AccessFlag;
-
-typedef enum OS_FileEventType {
-    OS_FILE_EVENT_TYPE_NULL,
-    OS_FILE_EVENT_TYPE_MODIFIED,
-    OS_FILE_EVENT_TYPE_ADDED,
-    OS_FILE_EVENT_TYPE_DELETED,
-    OS_FILE_EVENT_TYPE_RENAMED,
-}OS_FileEventType;
-
-typedef struct OS_FileEvent OS_FileEvent;
-struct OS_FileEvent {
-    Str8 name;
-    OS_FileEventType type;
-};
-
-#if OS_WINDOWS
-typedef struct OS_Win32_FileWatcher OS_FileWatcher;
-#endif
-
-function OSHandle os_file_open(OS_AccessFlag flags, Str8 path);
-function void os_file_close(OSHandle handle);
-function u64 os_file_read(OSHandle handle, u64 begin, u64 end, void* out_data);
-#define os_file_read_struct(handle, offset, struct_ptr) os_file_read((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
-function u64 os_file_write(OSHandle handle, u64 begin, u64 end, void* data);
-#define os_file_write_struct(handle, offset, struct_ptr) os_file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
-#define os_file_write_string(handle, str) os_file_write((handle), 0, str.size, str.data)
-
-
-function u32 os_file_delete(Str8 path);
-function u64 os_file_get_size(OSHandle handle);
-function u32 os_file_copy(Str8 src, Str8 dest);
-function u32 os_file_move(Str8 src, Str8 dest);
-function u32 os_file_exists(Str8 path);
-function u32 os_file_directory_exists(Str8 path);
-
-function OS_FileWatcher os_file_watcher_create(Str8 path, u32 watch_sub_directory);
-function OS_FileEvent* os_file_watcher_poll_events(OS_FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
-function void os_file_watcher_destroy(OS_FileWatcher* watcher);
+function void cli_attach_if_exists();
 
 ////////////////////////////////
-// OS: Timer
+// Module: Clock
 
-typedef struct Timer Timer;
-struct Timer {
+function u64 clock_resolution_us();
+function u64 clock_ticks_now();
+
+////////////////////////////////
+// Module Timer
+
+typedef struct Timer {
     u64 ticks;
     float delta;
-    float smooth_delta;
-    float very_smooth_delta;
-
     u64 resolution_us;
     f64 inverse_ticks_per_us;
-};
+}Timer;
 
-function Timer timer_init();
+function Timer timer_start();
 function void timer_update(Timer* timer);
 function u64 timer_get_timestamp(Timer* timer);
-#define os_get_timestamp_us() (u64)(os_get_ticks() * os_get_inverse_ticks_per_us())
+
+////////////////////////////////
+// Module: File
+
+typedef Handle FileHandle;
+
+typedef enum FileAccessFlag {
+    FILE_ACCESS_FLAG_OPEN_EXISTING  = 1 << 0,
+    FILE_ACCESS_FLAG_OPEN_ALWAYS    = 1 << 1,
+    FILE_ACCESS_FLAG_SHARE_READ     = 1 << 2,
+    FILE_ACCESS_FLAG_SHARE_WRITE    = 1 << 3,
+    FILE_ACCESS_FLAG_EXECUTE        = 1 << 5,
+    FILE_ACCESS_FLAG_READ           = 1 << 6,
+    FILE_ACCESS_FLAG_WRITE          = 1 << 7,
+    FILE_ACCESS_FLAG_APPEND         = 1 << 8
+}FileAccessFlag;
+
+function u32 file_delete(Str8 path);
+function u32 file_copy(Str8 src, Str8 dest);
+function u32 file_move(Str8 src, Str8 dest);
+function u32 file_exists(Str8 path);
+function u32 file_directory_exists(Str8 path);
+
+function FileHandle file_open(Str8 name, FileAccessFlag flags);
+function u64 file_size(FileHandle handle);
+function void file_close(FileHandle handle);
+function u8* file_read(Arena* arena, FileHandle handle, u64 begin, u64 end);
+#define file_read_struct(arena, handle, offset) file_read((arena), (handle), (offset), (offset) + sizeof(*(struct_ptr)))
+function void file_write(FileHandle handle, u64 begin, u64 end, void* data);
+#define file_write_struct(handle, offset, struct_ptr) file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
+#define file_write_string(handle, str) file_write((handle), 0, str.size, str.data)
+
+////////////////////////////////
+// Module: File Watcher
+
+typedef enum FileEventType {
+    FILE_EVENT_TYPE_NULL,
+    FILE_EVENT_TYPE_MODIFIED,
+    FILE_EVENT_TYPE_ADDED,
+    FILE_EVENT_TYPE_DELETED,
+    FILE_EVENT_TYPE_RENAMED,
+}FileEventType;
+
+typedef struct FileEvent {
+    Str8 file_name;
+    FileEventType type;
+}FileEvent;
+
+typedef struct Win32FileWatcher FileWatcher;
+
+function FileWatcher file_watcher_create(Str8 path, u32 watch_sub_directory);
+function FileEvent* file_watcher_poll_events(FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
+function void file_watcher_destroy(FileWatcher* watcher);
+
+////////////////////////////////
+// Module: Lib
+
+typedef Handle LibHandle;
+
+function LibHandle lib_load(Str8 name);
+function void lib_unload(LibHandle handle);
+function void* __lib_get_symbol(LibHandle lib, char* name);
+#define lib_get_symbol(lib, name) __lib_get_symbol(lib, __STRING__(name))
 
 //////////////////////////////
-// Types: DArray
+// DS: DArray
 
 typedef struct DArrayHeader DArrayHeader;
 struct DArrayHeader { u64 size; };
@@ -624,31 +626,16 @@ struct DArrayMetaData {
 
 function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
 
-//////////////////////////////
-// File API
 
-#define file_open               os_file_open
-#define file_close              os_file_close
-#define file_size               os_file_get_size
-#define file_delete             os_file_delete
-#define file_exists             os_file_exists
-#define file_directory_exists   os_file_directory_exists
-
-//////////////////////////////
+////////////////////////////////
 // MX
-
 
 #ifdef MSTD_USE_MATH
 #include "mx/mstd_math.h"
-#endif
-
-#ifdef MSTD_USE_GFX
-#include "mx/mstd_gfx.h"
 #endif
 
 #if LANG_CXX
 }
 #endif
 
-
-#endif // MSTD_H
+#endif // MSTD_V1_H
