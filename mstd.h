@@ -152,19 +152,15 @@ typedef int64_t  i64;
 #define i64_max INT64_MAX
 
 typedef uint8_t  u8;
-#define u8_min UINT8_MIN
 #define u8_max UINT8_MAX
 
 typedef uint16_t u16;
-#define u16_min UINT16_MIN
 #define u16_max UINT16_MAX
 
 typedef uint32_t u32;
-#define u32_min UINT32_MIN
 #define u32_max UINT32_MAX
 
 typedef uint64_t u64;
-#define u64_min UINT64_MIN
 #define u64_max UINT64_MAX
 
 typedef float  f32;
@@ -537,7 +533,7 @@ function u64 clock_ticks_now();
 
 typedef struct Timer {
     u64 ticks;
-    float delta;
+    f32 delta;
     u64 resolution_us;
     f64 inverse_ticks_per_us;
 }Timer;
