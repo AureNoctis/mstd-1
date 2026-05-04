@@ -1,6 +1,5 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-#include "mstd.h"
 
 #pragma comment(lib, "user32")
 #pragma comment(lib, "advapi32")
@@ -340,6 +339,22 @@ function void file_watcher_destroy(FileWatcher* watcher) {
     debug_validate(watcher);
     CloseHandle(watcher->iocp);
     CloseHandle(watcher->dir_handle);
+}
+
+////////////////////////////////
+// Module: Clock
+
+function u64 clock_resolution_us() {
+    LARGE_INTEGER resolution;
+    if (QueryPerformanceFrequency(&resolution))
+        return (resolution.QuadPart);
+    return 1;
+}
+
+function u64 clock_ticks_now() {
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return (u64)(counter.QuadPart);
 }
 
 ////////////////////////////////

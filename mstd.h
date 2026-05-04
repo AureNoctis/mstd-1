@@ -96,7 +96,7 @@ extern "C" {
 #if COMPILER_MSVC
 #define force_inline __forceinline
 #elif COMPILER_CLANG || COMPILER_GCC
-#define force_inline __attribute__((always_inline))
+#define force_inline inline __attribute__((always_inline))
 #else
 #error force_inline not defined for this compiler.
 #endif
@@ -234,9 +234,9 @@ typedef struct Handle {
 
 // TODO: mem leak debugger
 
-#if defined(COMPILER_MSVC)
+#if COMPILER_MSVC
     #define trap()                    __debugbreak()
-#elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+#elif COMPILER_CLANG || COMPILER_GCC
     #define trap()                    __builtin_trap()
 #endif
 
@@ -256,7 +256,7 @@ typedef struct Handle {
 ////////////////////////////////
 // Module: Memory
 
-#if defined(COMPILER_MSVC)
+#if COMPILER_MSVC
     void* memmove(void* dest, const void* src, size_t count);
     int memcmp(const void* buffer1, const void* buffer2, size_t count);
     #pragma intrinsic(memcmp, memmove)
@@ -265,7 +265,7 @@ typedef struct Handle {
     #define mem_copy(dest, src, size) __movsb((u8*)(dest), (u8*)(src), (size))
     #define mem_move(dest, src, size) memmove((dest), (src), (size))
     #define mem_match(a, b, size)     (memcmp((a), (b), (size)) == 0)
-#elif defined(COMPILER_CLANG) || defined(COMPILER_GCC)
+#elif COMPILER_CLANG || COMPILER_GCC
     #define trap()                    __builtin_trap()
     #define mem_set(p, byte, size)    __builtin_memset((p), (byte), (size))
     #define mem_copy(dest, src, size) __builtin_memcpy((dest), (src), (size))
@@ -607,7 +607,9 @@ typedef struct FileEvent {
     FileEventType type;
 }FileEvent;
 
+#if OS_WINDOWS
 typedef struct Win32FileWatcher FileWatcher;
+#endif
 
 function FileWatcher file_watcher_create(Str8 path, u32 watch_sub_directory);
 function FileEvent* file_watcher_poll_events(FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);

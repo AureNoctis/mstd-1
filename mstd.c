@@ -1,6 +1,5 @@
 #if OS_WINDOWS
 #include "mstd_win32.c"
-#include "mstd.h"
 #endif
 
 ////////////////////////////////
@@ -526,22 +525,6 @@ function Str32 str32_from_8(Arena* arena, Str8 str) {
     result.data = out;
     result.size = size;
     return result;
-}
-
-////////////////////////////////
-// Module: Clock
-
-function u64 clock_resolution_us() {
-    LARGE_INTEGER resolution;
-    if (QueryPerformanceFrequency(&resolution))
-        return (resolution.QuadPart);
-    return 1;
-}
-
-function u64 clock_ticks_now() {
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-    return (u64)(counter.QuadPart);
 }
 
 ////////////////////////////////
