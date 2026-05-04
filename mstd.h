@@ -396,6 +396,10 @@ typedef struct ArenaTempNode {
     struct ArenaTempNode* next;
 }ArenaTempNode;
 
+typedef struct ArenaOpt {
+    u8 large_pages;
+}ArenaOpt;
+
 typedef struct Arena {
     u64 cursor;
     u64 committed;
@@ -409,7 +413,8 @@ typedef struct Arena {
 
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
-function Arena* arena_alloc(u64 reserve_size, u32 can_commit_large_pages);
+function Arena* arena_alloc_opt(u64 reserve_size, ArenaOpt opt);
+#define arena_alloc(reserve_size, ...) arena_alloc_opt(reserve_size, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
 function void arena_release(Arena* arena);
 function void arena_reset(Arena* arena);
 
@@ -443,6 +448,11 @@ typedef struct Str32 {
     u32* data;
     u64 size;
 }Str32;
+
+typedef struct Str8Node {
+    struct Str8Node* next;
+    Str8 data;
+}Str8Node;
 
 typedef struct UnicodeDecode {
     u32 inc;
@@ -567,11 +577,19 @@ function u32 file_directory_exists(Str8 path);
 function FileHandle file_open(Str8 name, FileAccessFlag flags);
 function u64 file_size(FileHandle handle);
 function void file_close(FileHandle handle);
-function u8* file_read(Arena* arena, FileHandle handle, u64 begin, u64 end);
-#define file_read_struct(arena, handle, offset) file_read((arena), (handle), (offset), (offset) + sizeof(*(struct_ptr)))
-function void file_write(FileHandle handle, u64 begin, u64 end, void* data);
-#define file_write_struct(handle, offset, struct_ptr) file_write((handle), (offset), (offset) + sizeof(*(struct_ptr)), (struct_ptr))
-#define file_write_string(handle, str) file_write((handle), 0, str.size, str.data)
+
+typedef struct FileOpt {
+    u64 offset;
+    u64 size;
+}FileOpt;
+function u8* file_read_opt(Arena* arena, FileHandle handle, FileOpt opt);
+#define file_read(arena, handle, ...) file_read_opt(arena, handle, (FileOpt){.size = u64_max, __VA_ARGS__})
+#define file_read_struct(arena, handle, T, ...) (T*)file_read_opt(arena, handle, (FileOpt){.size = sizeof(T), __VA_ARGS__})
+
+function void file_write_opt(FileHandle handle, void* data, FileOpt opt);
+#define file_write(handle, data, size, ...) file_write_opt(handle, data, (FileOpt){.size = size, __VA_ARGS__})
+#define file_write_struct(handle, struct_ptr, ...) file_write_opt(handle, struct_ptr, (FileOpt){.size = sizeof(*struct_ptr), __VA_ARGS__})
+#define file_write_string(handle, str) file_write(handle, str.data, str.size)
 
 ////////////////////////////////
 // Module: File Watcher

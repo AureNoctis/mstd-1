@@ -6,23 +6,23 @@
 ////////////////////////////////
 // Arena
 
-function Arena* arena_alloc(u64 reserve_size, u32 can_commit_large_pages) {
-    u64 page_size = (can_commit_large_pages) ? mem_large_page_size() : mem_page_size();
+function Arena* arena_alloc_opt(u64 reserve_size, ArenaOpt opt) {
+    u64 page_size = (opt.large_pages) ? mem_large_page_size() : mem_page_size();
     debug_validate(page_size);
 
     u64 actual_reserve = align_up_pow2(reserve_size, page_size);
     u64 initial_commit = align_up_pow2(ARENA_HEADER_SIZE, page_size);
 
-    void* memory = mem_reserve(actual_reserve, can_commit_large_pages);
+    void* memory = mem_reserve(actual_reserve, opt.large_pages);
     debug_validate(memory);
-    mem_commit(memory, initial_commit, can_commit_large_pages);
+    mem_commit(memory, initial_commit, opt.large_pages);
 
     Arena* arena = (Arena*)memory;
     arena->committed                = initial_commit;
     arena->reserved                 = reserve_size;
     arena->page_size                = page_size;
     arena->cursor                   = ARENA_HEADER_SIZE;
-    arena->can_commit_large_pages   = can_commit_large_pages;
+    arena->can_commit_large_pages   = opt.large_pages;
     arena->temp_stack_head          = 0;
     arena->temp_stack_tail          = 0;
 
@@ -108,7 +108,7 @@ function Arena* arena_scratch_alloc() {
     if (index >= 0 && index < ARENA_SCRATCH_POOL_COUNT) {
         Arena* arena = arena_scratch_pool[index];
         if (arena == 0) {
-            arena = arena_alloc(MB(100), 0);
+            arena = arena_alloc(MB(100));
             arena_scratch_pool[index] = arena;
         }
         arena_reset(arena);
