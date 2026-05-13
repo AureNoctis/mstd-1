@@ -5,15 +5,15 @@
 ////////////////////////////////
 // Arena
 
-function Arena* arena_alloc_opt(u64 reserve_size, ArenaOpt opt) {
+function Arena* _arena_alloc(u64 reserve_size, ArenaOpt opt) {
     u64 page_size = (opt.large_pages) ? mem_large_page_size() : mem_page_size();
-    debug_validate(page_size);
+    debug_assert(page_size);
 
     u64 actual_reserve = align_up_pow2(reserve_size, page_size);
     u64 initial_commit = align_up_pow2(ARENA_HEADER_SIZE, page_size);
 
     void* memory = mem_reserve(actual_reserve, opt.large_pages);
-    debug_validate(memory);
+    debug_assert(memory);
     mem_commit(memory, initial_commit, opt.large_pages);
 
     Arena* arena = (Arena*)memory;
@@ -29,16 +29,16 @@ function Arena* arena_alloc_opt(u64 reserve_size, ArenaOpt opt) {
 }
 
 function void arena_release(Arena* arena) {
-    debug_validate(arena);
+    debug_assert(arena);
     mem_release(arena, arena->reserved);
 }
 
 function void* arena_push(Arena* arena, u64 size, u64 align) {
-    debug_validate(arena);
+    debug_assert(arena);
     u64 begin_pos = align_up_pow2(arena->cursor, align);
     u64 end_pos = begin_pos + size;
 
-    debug_validate(end_pos <= arena->reserved);
+    debug_assert(end_pos <= arena->reserved);
 
     if (end_pos > arena->committed) {
         u64 commit_target = align_up_pow2(end_pos, (u64)arena->page_size);
@@ -54,7 +54,7 @@ function void* arena_push(Arena* arena, u64 size, u64 align) {
 }
 
 function void arena_reset(Arena* arena) {
-    debug_validate(arena);
+    debug_assert(arena);
 
     if (arena->temp_stack_head)
         arena->cursor = (u8*)arena->temp_stack_head - (u8*)arena + sizeof(ArenaTempNode);
@@ -63,7 +63,7 @@ function void arena_reset(Arena* arena) {
 }
 
 function void arena_reset_forced(Arena* arena) {
-    debug_validate(arena);
+    debug_assert(arena);
 
     arena->temp_stack_head = 0;
     arena->temp_stack_tail = 0;
@@ -71,13 +71,13 @@ function void arena_reset_forced(Arena* arena) {
 }
 
 function void arena_temp_push(Arena* arena) {
-    debug_validate(arena);
+    debug_assert(arena);
     ArenaTempNode* node = arena_push_struct(arena, ArenaTempNode);
     sll_stack_push(arena->temp_stack_head, arena->temp_stack_tail, node);
 }
 
 function void arena_temp_pop(Arena* arena) {
-    debug_validate(arena);
+    debug_assert(arena);
 
     if (arena->temp_stack_head) {
         u64 cursor = (u8*)arena->temp_stack_head - (u8*)arena;
@@ -87,7 +87,7 @@ function void arena_temp_pop(Arena* arena) {
 }
 
 function void arena_temp_pop_all(Arena* arena) {
-    debug_validate(arena);
+    debug_assert(arena);
 
     if (arena->temp_stack_tail) {
         arena->cursor = (u8*)arena->temp_stack_tail - (u8*)arena;
@@ -118,7 +118,7 @@ function Arena* arena_scratch_alloc() {
 }
 
 function void arena_scratch_release(Arena* arena) {
-    debug_validate(arena);
+    debug_assert(arena);
 
     for (i32 i = 0; i < ARENA_SCRATCH_POOL_COUNT; ++i) {
         if (arena_scratch_pool[i] == arena) {
@@ -144,7 +144,7 @@ function Str8 str8_from_cstr(u8* str) {
 }
 
 function Str8 str8_of_size(Arena* arena, u64 size) {
-    debug_validate(arena);
+    debug_assert(arena);
 
     Str8 result = { 0 };
 
@@ -176,7 +176,6 @@ function Str8 str8_from_fmt(Arena *arena, const char *fmt, ...) {
 }
 
 function Str8 __str8_concat_n(Arena* arena, ...) {
-    debug_validate(arena);
     va_list args;
     u64 size = 0;
 
@@ -204,7 +203,7 @@ function Str8 __str8_concat_n(Arena* arena, ...) {
 }
 
 function Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str8 result = str8_of_size(arena, a.size + b.size);
 
     mem_copy(result.data, a.data, a.size);
@@ -232,7 +231,7 @@ function u8 str8_match(Str8 a, Str8 b) {
 
 
 function Str8 str8_copy(Arena* arena, Str8 str) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str8 string = str8_of_size(arena, str.size);
 
     mem_copy_array(string.data, str.data, str.size);
@@ -253,7 +252,7 @@ function Str16 str16_from_cstr(u16* str) {
 }
 
 function Str16 str16_of_size(Arena* arena, u64 size) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str16 result = { 0 };
 
     result.data = arena_push_array(arena, u16, size + 1);
@@ -264,7 +263,7 @@ function Str16 str16_of_size(Arena* arena, u64 size) {
 }
 
 function Str16 str16_concat(Arena* arena, Str16 a, Str16 b) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str16 result = str16_of_size(arena, a.size + b.size);
 
     mem_copy(result.data, a.data, a.size);
@@ -279,7 +278,7 @@ function u8 str16_match(Str16 a, Str16 b) {
 }
 
 function Str16 str16_copy(Arena* arena, Str16 str) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str16 string = str16_of_size(arena, str.size);
 
     mem_copy_array(string.data, str.data, str.size);
@@ -409,7 +408,7 @@ function u32 utf16_size(u32 cp) {
 }
 
 function Str8 str8_from_16(Arena* arena, Str16 str) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str8 result = { 0 };
 
     u16* ptr = str.data;
@@ -439,7 +438,7 @@ function Str8 str8_from_16(Arena* arena, Str16 str) {
 }
 
 function Str16 str16_from_8(Arena* arena, Str8 str) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str16 result = { 0 };
     if (!str.size) return result;
 
@@ -471,7 +470,7 @@ function Str16 str16_from_8(Arena* arena, Str8 str) {
 }
 
 function Str8 str8_from_32(Arena* arena, Str32 str) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str8 result = { 0 };
     if (!str.size) return result;
 
@@ -497,7 +496,7 @@ function Str8 str8_from_32(Arena* arena, Str32 str) {
 }
 
 function Str32 str32_from_8(Arena* arena, Str8 str) {
-    debug_validate(arena);
+    debug_assert(arena);
     Str32 result = { 0 };
     if (!str.size) return result;
 
@@ -581,6 +580,6 @@ function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DA
         elem_i -= base;
     }
 
-    debug_validate(chunks[chunks_i]);
+    debug_assert(chunks[chunks_i]);
     return chunks[chunks_i] + (elem_i * meta.el_size);
 }

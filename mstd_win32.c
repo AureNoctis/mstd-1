@@ -45,8 +45,8 @@ function void cli_attach_if_exists() {
         HANDLE hOut = CreateFileA("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
         HANDLE hIn  = CreateFileA("CONIN$",  GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,  NULL, OPEN_EXISTING, 0, NULL);
 
-        debug_validate(hOut != INVALID_HANDLE_VALUE);
-        debug_validate(hIn != INVALID_HANDLE_VALUE);
+        debug_assert(hOut != INVALID_HANDLE_VALUE);
+        debug_assert(hIn != INVALID_HANDLE_VALUE);
 
         SetStdHandle(STD_OUTPUT_HANDLE, hOut);
         SetStdHandle(STD_ERROR_HANDLE,  hOut);
@@ -159,7 +159,7 @@ function FileHandle file_open(Str8 name, FileAccessFlag flags) {
         result.val[0] = (u64)file;
 
     arena_scratch_release(arena);
-    debug_validate(result.val[0]);
+    debug_assert(result.val[0]);
 
     return result;
 }
@@ -174,7 +174,7 @@ function void file_close(FileHandle handle) {
     CloseHandle((HANDLE)handle.val[0]);
 }
 
-function u8* file_read_opt(Arena* arena, FileHandle handle, FileOpt opt) {
+function u8* _file_read(Arena* arena, FileHandle handle, FileOpt opt) {
     u64 total_read_size = 0;
 
     if (handle.val[0]) {
@@ -210,7 +210,7 @@ function u8* file_read_opt(Arena* arena, FileHandle handle, FileOpt opt) {
     return 0;
 }
 
-function void file_write_opt(FileHandle handle, void* data, FileOpt opt) {
+function void _file_write(FileHandle handle, void* data, FileOpt opt) {
     u64 total_written = 0;
 
     if (handle.val[0]) {
@@ -336,7 +336,7 @@ function FileEvent* file_watcher_poll_events(FileWatcher* watcher, Arena* arena,
 }
 
 function void file_watcher_destroy(FileWatcher* watcher) {
-    debug_validate(watcher);
+    debug_assert(watcher);
     CloseHandle(watcher->iocp);
     CloseHandle(watcher->dir_handle);
 }
@@ -364,7 +364,7 @@ function u64 clock_ticks_now() {
 function LibHandle lib_load(Str8 name) {
     LibHandle handle = {0};
     HMODULE module = LoadLibraryA((LPCSTR)name.data);
-    debug_validate(module);
+    debug_assert(module);
     handle.val[0] = (u64)module;
     return handle;
 }

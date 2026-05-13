@@ -241,17 +241,34 @@ typedef struct Handle {
 #endif
 
 #if MSTD_DEBUG
-    #define debug_trap_code_if(code, op, check) while((code) op (check)) { trap(); }
-    #define debug_trap_if(condition)            while(condition) { trap(); }
-    #define DEBUG_TRUE 1
-#else
-    #define debug_trap_code_if(code, op, check) ((void)(code))
-    #define debug_trap_if(condition)
-    #define DEBUG_TRUE 0
-#endif
+#define debug_assert(condition) \
+    do { \
+        if (!(condition)) { \
+            printf("ASSERT FAILED\nFILE: %s\nLINE: %d\nCONDITION: %s\n", \
+                   __FILE__, __LINE__, #condition); \
+            trap(); \
+        } \
+    } while (0)
 
-#define debug_validate_code(code, check)        debug_trap_code_if(code, !=, check)
-#define debug_validate(condition)               debug_trap_if(!(condition))
+#define debug_assert_code(code, check) \
+    do { \
+        if ((code) != (check)) { \
+            printf("CODE MISMATCH\nFILE: %s\nLINE: %d\nEXPECTED: %s\nACTUAL: %s\n", \
+                   __FILE__, __LINE__, #check, #code); \
+            trap(); \
+        } \
+    } while (0)
+
+#define debug_panic() \
+    do { \
+        printf("PANIC\nFILE: %s\nLINE: %d\n", __FILE__, __LINE__); \
+        trap(); \
+    } while (0)
+#else
+    #define debug_assert(condition)
+    #define debug_assert_code(code, check) ((void)(code))
+    #define debug_panic
+#endif
 
 ////////////////////////////////
 // Module: Memory
@@ -413,8 +430,8 @@ typedef struct Arena {
 
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
-function Arena* arena_alloc_opt(u64 reserve_size, ArenaOpt opt);
-#define arena_alloc(reserve_size, ...) arena_alloc_opt(reserve_size, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
+function Arena* _arena_alloc(u64 reserve_size, ArenaOpt opt);
+#define arena_alloc(reserve_size, ...) _arena_alloc(reserve_size, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
 function void arena_release(Arena* arena);
 function void arena_reset(Arena* arena);
 
@@ -582,13 +599,14 @@ typedef struct FileOpt {
     u64 offset;
     u64 size;
 }FileOpt;
-function u8* file_read_opt(Arena* arena, FileHandle handle, FileOpt opt);
-#define file_read(arena, handle, ...) file_read_opt(arena, handle, (FileOpt){.size = u64_max, __VA_ARGS__})
-#define file_read_struct(arena, handle, T, ...) (T*)file_read_opt(arena, handle, (FileOpt){.size = sizeof(T), __VA_ARGS__})
 
-function void file_write_opt(FileHandle handle, void* data, FileOpt opt);
-#define file_write(handle, data, size, ...) file_write_opt(handle, data, (FileOpt){.size = size, __VA_ARGS__})
-#define file_write_struct(handle, struct_ptr, ...) file_write_opt(handle, struct_ptr, (FileOpt){.size = sizeof(*struct_ptr), __VA_ARGS__})
+function u8* _file_read(Arena* arena, FileHandle handle, FileOpt opt);
+#define file_read(arena, handle, ...) _file_read(arena, handle, (FileOpt){.size = u64_max, __VA_ARGS__})
+#define file_read_struct(arena, handle, T, ...) (T*)_file_read(arena, handle, (FileOpt){.size = sizeof(T), __VA_ARGS__})
+
+function void _file_write(FileHandle handle, void* data, FileOpt opt);
+#define file_write(handle, data, size, ...) _file_write(handle, data, (FileOpt){.size = size, __VA_ARGS__})
+#define file_write_struct(handle, struct_ptr, ...) _file_write(handle, struct_ptr, (FileOpt){.size = sizeof(*struct_ptr), __VA_ARGS__})
 #define file_write_string(handle, str) file_write(handle, str.data, str.size)
 
 ////////////////////////////////
