@@ -232,8 +232,6 @@ typedef struct Handle {
 ////////////////////////////////
 // Module: Debug
 
-// TODO: mem leak debugger
-
 #if COMPILER_MSVC
     #define trap()                    __debugbreak()
 #elif COMPILER_CLANG || COMPILER_GCC
@@ -328,6 +326,45 @@ function u64 mem_page_size();
 function u64 mem_large_page_size();
 
 ////////////////////////////////
+// Module: Arena
+
+typedef struct ArenaTempNode {
+    struct ArenaTempNode* next;
+}ArenaTempNode;
+
+typedef struct ArenaOpt {
+    u8 large_pages;
+}ArenaOpt;
+
+typedef struct Arena {
+    u64 cursor;
+    u64 committed;
+    u64 reserved;
+    ArenaTempNode* temp_stack_tail;
+    ArenaTempNode* temp_stack_head;
+    u32 page_size;
+    u8 can_commit_large_pages;
+}Arena;
+
+#define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
+
+function Arena* _arena_alloc(u64 reserve_size, ArenaOpt opt);
+#define arena_alloc(reserve_size, ...) _arena_alloc(reserve_size, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
+function void arena_release(Arena* arena);
+function void arena_reset(Arena* arena);
+
+function void* arena_push(Arena* arena, u64 size, u64 align);
+#define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), mem_align_of(T))
+#define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), mem_align_of(T))
+
+function void arena_temp_push(Arena* arena);
+function void arena_temp_pop(Arena* arena);
+function void arena_temp_pop_all(Arena* arena);
+
+function Arena* arena_scratch_alloc();
+function void arena_scratch_release(Arena* arena);
+
+////////////////////////////////
 // DS: LinkList
 
 #define dll_push_back_np(head, tail, node, next, prev) (                \
@@ -406,45 +443,22 @@ function u64 mem_large_page_size();
 #define sll_queue_push(head, tail, node) sll_push_back(head, tail, node)
 #define sll_queue_pop(head, tail)        sll_pop_front(head, tail)
 
-////////////////////////////////
-// Module: Arena
+//////////////////////////////
+// DS: DArray
 
-typedef struct ArenaTempNode {
-    struct ArenaTempNode* next;
-}ArenaTempNode;
+typedef struct DArrayHeader DArrayHeader;
+struct DArrayHeader { u64 size; };
 
-typedef struct ArenaOpt {
-    u8 large_pages;
-}ArenaOpt;
+#define __darray__ union { u64 size; DArrayHeader header; };
 
-typedef struct Arena {
-    u64 cursor;
-    u64 committed;
-    u64 reserved;
-    ArenaTempNode* temp_stack_tail;
-    ArenaTempNode* temp_stack_head;
-    u32 page_size;
-    u8 can_commit_large_pages;
-}Arena;
+typedef struct DArrayMetaData DArrayMetaData;
+struct DArrayMetaData {
+    u8 shift;
+    u8 chunks_n;
+    u64 el_size;
+};
 
-
-#define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
-
-function Arena* _arena_alloc(u64 reserve_size, ArenaOpt opt);
-#define arena_alloc(reserve_size, ...) _arena_alloc(reserve_size, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
-function void arena_release(Arena* arena);
-function void arena_reset(Arena* arena);
-
-function void* arena_push(Arena* arena, u64 size, u64 align);
-#define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), mem_align_of(T))
-#define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), mem_align_of(T))
-
-function void arena_temp_push(Arena* arena);
-function void arena_temp_pop(Arena* arena);
-function void arena_temp_pop_all(Arena* arena);
-
-function Arena* arena_scratch_alloc();
-function void arena_scratch_release(Arena* arena);
+function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
 
 ////////////////////////////////
 // Strings
@@ -642,23 +656,6 @@ function LibHandle lib_load(Str8 name);
 function void lib_unload(LibHandle handle);
 function void* __lib_get_symbol(LibHandle lib, char* name);
 #define lib_get_symbol(lib, name) __lib_get_symbol(lib, __STRING__(name))
-
-//////////////////////////////
-// DS: DArray
-
-typedef struct DArrayHeader DArrayHeader;
-struct DArrayHeader { u64 size; };
-
-#define __darray__ union { u64 size; DArrayHeader header; };
-
-typedef struct DArrayMetaData DArrayMetaData;
-struct DArrayMetaData {
-    u8 shift;
-    u8 chunks_n;
-    u64 el_size;
-};
-
-function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
 
 
 ////////////////////////////////

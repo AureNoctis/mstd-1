@@ -80,7 +80,7 @@ function void arena_temp_pop(Arena* arena) {
     debug_assert(arena);
 
     if (arena->temp_stack_head) {
-        u64 cursor = (u8*)arena->temp_stack_head - (u8*)arena;
+        u64 cursor = (u64)((u8*)arena->temp_stack_head - (u8*)arena);
         sll_stack_pop(arena->temp_stack_head, arena->temp_stack_tail);
         arena->cursor = cursor;
     }
@@ -96,7 +96,7 @@ function void arena_temp_pop_all(Arena* arena) {
     }
 }
 
-#define ARENA_SCRATCH_POOL_COUNT 8
+#define ARENA_SCRATCH_POOL_COUNT 2
 
 global thread_var Arena* arena_scratch_pool[ARENA_SCRATCH_POOL_COUNT] = { 0 };
 global thread_var u8     arena_scratch_pool_available_mask = (1u << ARENA_SCRATCH_POOL_COUNT) - 1;
