@@ -343,22 +343,26 @@ typedef struct Arena {
     ArenaTempNode* temp_stack_head;
     u32 page_size;
     u32 can_commit_large_pages;
-
-    #if MSTD_DEBUG
-        u32 code_line_of_alloc;
-        char* code_file_of_alloc;
-    #endif
+    u32 code_line_of_alloc;
+    char* code_file_of_alloc;
 }Arena;
 
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
 function Arena*                             _arena_alloc(u64 reserve_size, char* file, u32 line, ArenaOpt opt);
+#define arena_alloc(reserve_size, ...)      _arena_alloc(reserve_size, __FILE__, __LINE__, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
 
-#if MSTD_DEBUG
-    #define arena_alloc(reserve_size, ...)  _arena_alloc(reserve_size, __FILE__, __LINE__, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
-#else
-    #define arena_alloc(reserve_size, ...)  _arena_alloc(reserve_size, __FILE__, __LINE__, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
-#endif
+#define arena_print_debug_info(arena)       do {                                                    \
+                                                printf("ARENA DIAGNOSTIC (Called at %s:%d)\n"       \
+                                                       "\tReserved: %llu, Committed: %llu\n"        \
+                                                       "\tOrigin Line: %d\n"                        \
+                                                       "\tOrigin File: %s\n",                       \
+                                                       __FILE__, __LINE__,                          \
+                                                       (arena).reserved,                            \
+                                                       (arena).committed,                           \
+                                                       (arena).code_line_of_alloc,                  \
+                                                       (arena).code_file_of_alloc);                 \
+                                            } while(0)
 
 function void                               arena_release(Arena* arena);
 function void                               arena_reset(Arena* arena);
