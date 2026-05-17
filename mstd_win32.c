@@ -1,6 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-
+#include "mstd.h"
 #pragma comment(lib, "user32")
 #pragma comment(lib, "advapi32")
 
@@ -62,6 +60,250 @@ function void cli_attach_if_exists() {
             mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
             SetConsoleMode(hOut, mode);
         }
+    }
+}
+
+////////////////////////////////
+// Module: Thread
+
+function DWORD WINAPI thread_entry_point(LPVOID lpParameter) {
+    ThreadEntity* entity = (ThreadEntity*)lpParameter;
+
+    if (!entity)
+        return 1;
+
+    ThreadEntryPointFunctionType* user_func = entity->thread.func;
+    void* user_data = entity->thread.user_data;
+
+    if (user_func)
+        user_func(user_data);
+
+    return (0);
+}
+
+function ThreadEntity* thread_entity_alloc(ThreadEntityType type) {
+    ThreadEntity* result = 0;
+
+    EnterCriticalSection(&thread_entity_state.mutex);
+    {
+        result = thread_entity_state.head;
+
+        if(result)
+            sll_stack_pop(thread_entity_state.head, thread_entity_state.tail);
+        else
+            result = arena_push_struct(thread_entity_state.arena, ThreadEntity);
+
+        mem_zero_struct(result);
+    }
+    LeaveCriticalSection(&thread_entity_state.mutex);
+
+    result->type = type;
+    return result;
+}
+
+function void thread_entity_release(ThreadEntity* entity) {
+    entity->type = Thread_Entity_TYPE_NULL;
+    EnterCriticalSection(&thread_entity_state.mutex);
+    {
+        sll_stack_push(thread_entity_state.head, thread_entity_state.tail, entity);
+    }
+    LeaveCriticalSection(&thread_entity_state.mutex);
+}
+
+function Thread thread_attach(ThreadEntryPointFunctionType func, void* user_data) {
+    ThreadEntity* entity = thread_entity_alloc(Thread_Entity_TYPE_THREAD);
+
+    if (entity) {
+        entity->thread.func = func;
+        entity->thread.user_data = user_data;
+        entity->thread.handle.val[0] = (u64)CreateThread(0, 0, thread_entry_point, entity, 0, (LPDWORD)&entity->thread.id);
+    }
+
+    Thread thread;
+    thread.val[0] = (u64)entity;
+    return thread;
+}
+
+function u32 thread_join(Thread thread) {
+    ThreadEntity* entity = (ThreadEntity*)thread.val[0];
+    DWORD wait_result = WaitForSingleObject((HANDLE)entity->thread.handle.val[0], INFINITE);
+    if (entity &&  wait_result == WAIT_OBJECT_0) {
+        CloseHandle((HANDLE)entity->thread.handle.val[0]);
+        thread_entity_release(entity);
+    }
+
+    return (wait_result == WAIT_OBJECT_0);
+}
+
+function void thread_detach(Thread thread) {
+    ThreadEntity* entity = (ThreadEntity*)thread.val[0];
+    if(entity) {
+        CloseHandle((HANDLE)entity->thread.handle.val[0]);
+        thread_entity_release(entity);
+    }
+}
+
+function u32 thread_id() {
+    return (u32)GetCurrentThreadId();
+}
+
+function void thread_sleep(u32 ms) {
+    Sleep((DWORD)ms);
+}
+
+function Mutex mutex_create() {
+    ThreadEntity* entity = thread_entity_alloc(Thread_Entity_TYPE_MUTEX);
+    if (entity)
+        InitializeCriticalSection(&entity->mutex);
+    Mutex mutex;
+    mutex.val[0] = (u64)entity;
+    return mutex;
+}
+
+function void mutex_take(Mutex mutex) {
+    ThreadEntity* entity = (ThreadEntity*)mutex.val[0];
+    EnterCriticalSection(&entity->mutex);
+}
+
+function void mutex_drop(Mutex mutex) {
+    ThreadEntity* entity = (ThreadEntity*)mutex.val[0];
+    LeaveCriticalSection(&entity->mutex);
+}
+
+function void mutex_destroy(Mutex mutex) {
+    ThreadEntity* entity = (ThreadEntity*)mutex.val[0];
+    DeleteCriticalSection(&entity->mutex);
+    thread_entity_release(entity);
+}
+
+function RWMutex rw_mutex_create() {
+    ThreadEntity* entity = thread_entity_alloc(Thread_Entity_TYPE_RWMUTEX);
+    if (entity)
+        InitializeSRWLock(&entity->rw_mutex);
+    RWMutex rm;
+    rm.val[0] = (u64)entity;
+    return rm;
+}
+
+function void rw_mutex_take(RWMutex mutex, u32 write_mode) {
+    ThreadEntity* entity = (ThreadEntity*)mutex.val[0];
+
+    if (write_mode)
+        AcquireSRWLockExclusive(&entity->rw_mutex);
+    else
+        AcquireSRWLockShared(&entity->rw_mutex);
+}
+
+function void rw_mutex_drop(RWMutex mutex, u32 write_mode) {
+    ThreadEntity* entity = (ThreadEntity*)mutex.val[0];
+
+    if (write_mode)
+        ReleaseSRWLockExclusive(&entity->rw_mutex);
+    else
+        ReleaseSRWLockShared(&entity->rw_mutex);
+}
+
+function void rw_mutex_destroy(RWMutex mutex) {
+    ThreadEntity* entity = (ThreadEntity*)mutex.val[0];
+    thread_entity_release(entity);
+}
+
+function CondVar cond_var_create() {
+    ThreadEntity* entity = thread_entity_alloc(Thread_Entity_TYPE_CONDITION_VARIABLE);
+    if (entity)
+        InitializeConditionVariable(&entity->cv);
+    CondVar var;
+    var.val[0] = (u64)entity;
+    return var;
+}
+
+function u32 cond_var_wait(CondVar var, Mutex mutex) {
+    u32 result = 0;
+    ThreadEntity* cv_entity = (ThreadEntity*)var.val[0];
+    ThreadEntity* m_entity = (ThreadEntity*)mutex.val[0];
+    result = SleepConditionVariableCS(&cv_entity->cv, &m_entity->mutex, INFINITE);
+    return result;
+}
+
+function u32 cond_var_wait_rw(CondVar var, RWMutex mutex, u32 write_mode) {
+    u32 result = 0;
+    ThreadEntity* cv_entity = (ThreadEntity*)var.val[0];
+    ThreadEntity* m_entity = (ThreadEntity*)mutex.val[0];
+    result = SleepConditionVariableSRW(&cv_entity->cv, &m_entity->rw_mutex, INFINITE, write_mode ? 0 : CONDITION_VARIABLE_LOCKMODE_SHARED);
+    return result;
+}
+
+function void cond_var_signal(CondVar var) {
+    ThreadEntity* entity = (ThreadEntity*)var.val[0];
+    WakeConditionVariable(&entity->cv);
+}
+
+function void cond_var_broadcast(CondVar var) {
+    ThreadEntity* entity = (ThreadEntity*)var.val[0];
+    WakeAllConditionVariable(&entity->cv);
+}
+
+function void cond_var_destroy(CondVar var) {
+    ThreadEntity* entity = (ThreadEntity*)var.val[0];
+    thread_entity_release(entity);
+}
+
+function Semaphore semaphore_create(u32 initial_count, u32 max_count, Str8 name) {
+    Semaphore semaphore;
+    arena_scratch_scope(scratch) {
+        Str16 name_w = str16_from_8(scratch, name);
+        semaphore.val[0] = (u64)CreateSemaphoreW(0, initial_count, max_count, (LPCWSTR)name_w.data);
+    }
+    return semaphore;
+}
+
+function Semaphore semaphore_open(Str8 name) {
+    Semaphore semaphore;
+    arena_scratch_scope(scratch) {
+        Str16 name_w = str16_from_8(scratch, name);
+        semaphore.val[0] = (u64)OpenSemaphoreW(SEMAPHORE_ALL_ACCESS, 0, (LPWSTR)name_w.data);
+    }
+    return semaphore;
+}
+
+function void semaphore_close(Semaphore semaphore) {
+    CloseHandle((HANDLE)semaphore.val[0]);
+}
+
+function u32 semaphore_take(Semaphore semaphore) {
+    DWORD wait_result = WaitForSingleObject((HANDLE)semaphore.val[0], INFINITE);
+    return (wait_result == WAIT_OBJECT_0);
+}
+
+function void semaphore_drop(Semaphore semaphore) {
+    ReleaseSemaphore((HANDLE)semaphore.val[0], 1, 0);
+}
+
+function void semaphore_destroy(Semaphore semaphore) {
+    CloseHandle((HANDLE)semaphore.val[0]);
+}
+
+function Barrier barrier_create(u64 count) {
+    ThreadEntity* entity = thread_entity_alloc(Thread_Entity_TYPE_BARRIER);
+    if (entity) {
+        InitializeSynchronizationBarrier(&entity->sb, count, -1);
+    }
+    Barrier barrier;
+    barrier.val[0] = (u64)entity;
+    return barrier;
+}
+
+function void barrier_wait(Barrier barrier) {
+    ThreadEntity* entity = (ThreadEntity*)barrier.val[0];
+    if (entity)
+        EnterSynchronizationBarrier(&entity->sb, 0);
+}
+
+function void barrier_destroy(Barrier barrier) {
+    ThreadEntity* entity = (ThreadEntity*)barrier.val[0];
+    if (entity) {
+        DeleteSynchronizationBarrier(&entity->sb);
+        thread_entity_release(entity);
     }
 }
 
@@ -303,7 +545,7 @@ function FileEvent* file_watcher_poll_events(FileWatcher* watcher, Arena* arena,
             notify = (FILE_NOTIFY_INFORMATION*)watcher->notification_buffer;
 
             for (u32 i = 0; i < count; i++) {
-                u32 name_len_chars = notify->FileNameLength / sizeof(WCHAR);
+                u32 name_len_chars = notify->FileNameLength / sizeof(u16);
                 Str16 u16_file = { (u16*)notify->FileName, name_len_chars };
 
                 result_array[i].file_name = str8_from_16(arena, u16_file);
@@ -363,9 +605,11 @@ function u64 clock_ticks_now() {
 
 function LibHandle lib_load(Str8 name) {
     LibHandle handle = {0};
-    HMODULE module = LoadLibraryA((LPCSTR)name.data);
-    debug_assert(module);
-    handle.val[0] = (u64)module;
+    arena_scratch_scope(scratch) {
+        Str16 name16 = str16_from_8(scratch, name);
+        HMODULE mod = LoadLibraryW((LPWSTR)name16.data);
+        handle.val[0] = (u64)mod;
+    }
     return handle;
 }
 

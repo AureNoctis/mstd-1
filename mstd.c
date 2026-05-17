@@ -1,3 +1,6 @@
+#include "mstd.h"
+
+
 #if OS_WINDOWS
 #include "mstd_win32.c"
 #endif
@@ -5,7 +8,7 @@
 ////////////////////////////////
 // Arena
 
-function Arena* _arena_alloc(u64 reserve_size, ArenaOpt opt) {
+function Arena* _arena_alloc(u64 reserve_size, char* file, u32 line, ArenaOpt opt) {
     u64 page_size = (opt.large_pages) ? mem_large_page_size() : mem_page_size();
     debug_assert(page_size);
 
@@ -24,6 +27,14 @@ function Arena* _arena_alloc(u64 reserve_size, ArenaOpt opt) {
     arena->can_commit_large_pages   = opt.large_pages;
     arena->temp_stack_head          = 0;
     arena->temp_stack_tail          = 0;
+
+    #if MSTD_DEBUG
+        arena->code_line_of_alloc = line;
+        arena->code_file_of_alloc = file;
+    #else
+        (void)(line);
+        (void)(file);
+    #endif
 
     return arena;
 }
@@ -292,7 +303,7 @@ const global u8 utf8_class[32] = {
 };
 
 function UnicodeDecode utf8_decode(u8* str, u64 max) {
-    UnicodeDecode result = { 1, UINT32_MAX };
+    UnicodeDecode result = { 1, u32_max };
     u8 byte = str[0];
     u8 byte_class = utf8_class[byte >> 3];
     switch (byte_class) {
@@ -380,7 +391,7 @@ function u32 utf8_encode(u8* str, u32 codepoint) {
 
 function u32 utf16_encode(u16* str, u32 codepoint) {
     u32 inc = 1;
-    if (codepoint == UINT32_MAX)
+    if (codepoint == u32_max)
         str[0] = (u16)'?';
     else if (codepoint < 0x10000)
         str[0] = (u16)codepoint;
