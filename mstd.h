@@ -352,16 +352,23 @@ typedef struct Arena {
 function Arena*                             _arena_alloc(u64 reserve_size, char* file, u32 line, ArenaOpt opt);
 #define arena_alloc(reserve_size, ...)      _arena_alloc(reserve_size, __FILE__, __LINE__, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
 
-#define arena_print_debug_info(arena)       do {                                                    \
-                                                printf("ARENA DIAGNOSTIC (Called at %s:%d)\n"       \
-                                                       "\tReserved: %llu, Committed: %llu\n"        \
-                                                       "\tOrigin Line: %d\n"                        \
-                                                       "\tOrigin File: %s\n",                       \
-                                                       __FILE__, __LINE__,                          \
-                                                       (arena).reserved,                            \
-                                                       (arena).committed,                           \
-                                                       (arena).code_line_of_alloc,                  \
-                                                       (arena).code_file_of_alloc);                 \
+#define arena_print_debug_info(arena)       do {                                                            \
+                                                printf("ARENA DIAGNOSTIC (Called at %s:%d)\n"               \
+                                                       "\tReserved: %llu, Committed: %llu, Cursor: %llu\n"  \
+                                                       "\tPage Size: %u\n"                                  \
+                                                       "\tCan Commit Large Pages: %s\n"                     \
+                                                       "\tTemp Stack Tail: %p, Head: %p\n"                  \
+                                                       "\tOrigin Line: %d\n"                                \
+                                                       "\tOrigin File: %s\n",                               \
+                                                       __FILE__, __LINE__,                                  \
+                                                       (arena)->reserved, (arena)->committed,               \
+                                                       (arena)->cursor,                                     \
+                                                       (arena)->page_size,                                  \
+                                                       (arena)->can_commit_large_pages ? "Yes" : "No",      \
+                                                       (void*)(arena)->temp_stack_tail,                     \
+                                                       (void*)(arena)->temp_stack_head,                     \
+                                                       (arena)->code_line_of_alloc,                         \
+                                                       (arena)->code_file_of_alloc);                        \
                                             } while(0)
 
 function void                               arena_release(Arena* arena);
