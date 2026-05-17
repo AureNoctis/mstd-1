@@ -387,7 +387,7 @@ function void                               arena_temp_pop_all(Arena* arena);
 
 function Arena*                             arena_scratch_alloc();
 function void                               arena_scratch_release(Arena* arena);
-#define arena_scratch_scope(scratch)        scope(arena_scratch_alloc(),arena_scratch_release(scratch))
+#define arena_scratch_scope(scratch)        for (Arena* scratch = arena_scratch_alloc(); scratch != NULL; (arena_scratch_release(scratch), scratch = NULL))
 
 ////////////////////////////////
 // DS: LinkList
