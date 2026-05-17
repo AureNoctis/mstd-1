@@ -126,6 +126,8 @@
 #define ___JOIN___(a, b) a##b
 #define __JOIN__(a, b) ___JOIN___(a, b)
 
+#define scope(begin, end)        for(int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
+
 #define bit(x) (1ULL << x)
 
 ////////////////////////////////
@@ -381,11 +383,11 @@ function void*                              arena_push(Arena* arena, u64 size, u
 function void                               arena_temp_push(Arena* arena);
 function void                               arena_temp_pop(Arena* arena);
 function void                               arena_temp_pop_all(Arena* arena);
-#define arena_temp_scope(arena)             for (i32 _i_ = (arena_temp_push(arena), 1); _i_ == 1; (arena_temp_pop(arena), _i_ = 0))
+#define arena_temp_scope(arena)             scope(arena_temp_push(arena), arena_temp_pop(arena))
 
 function Arena*                             arena_scratch_alloc();
 function void                               arena_scratch_release(Arena* arena);
-#define arena_scratch_scope(scratch)        for (Arena* scratch = arena_scratch_alloc(); scratch != NULL; (arena_scratch_release(scratch), scratch = NULL))
+#define arena_scratch_scope(scratch)        scope(arena_scratch_alloc(),arena_scratch_release(scratch))
 
 ////////////////////////////////
 // DS: LinkList
@@ -521,20 +523,41 @@ typedef enum CharType {
     CHAR_TYPE_DIGIT16   = (1 << 4)
 }CharType;
 
-mem_align_to(64) global u8 ASCII_LUT[256] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, CHAR_TYPE_SPACE, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    CHAR_TYPE_SPACE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), (CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16), 0, 0, 0, 0, 0, 0,
-    0, (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16), CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER,
-    CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, CHAR_TYPE_UPPER, 0, 0, 0, 0, 0,
-    0, (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), (CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16), CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER,
-    CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, CHAR_TYPE_LOWER, 0, 0, 0, 0, 0,
+mem_align_to(64) global const u8 ASCII_LUT[256] = {
+    // White-space: Tab, LF, VT, FF, CR, Space
+    [0x09] = CHAR_TYPE_SPACE, [0x0A] = CHAR_TYPE_SPACE, [0x0B] = CHAR_TYPE_SPACE,
+    [0x0C] = CHAR_TYPE_SPACE, [0x0D] = CHAR_TYPE_SPACE, [0x20] = CHAR_TYPE_SPACE,
 
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    // Digits: 0-9 (Decimal + Hex)
+    ['0'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['1'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['2'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['3'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['4'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['5'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['6'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['7'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['8'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['9'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+
+    // Uppercase Hex: A-F
+    ['A'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['B'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+    ['C'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['D'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+    ['E'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['F'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+
+    // Uppercase Non-Hex: G-Z
+    ['G'] = CHAR_TYPE_UPPER, ['H'] = CHAR_TYPE_UPPER, ['I'] = CHAR_TYPE_UPPER, ['J'] = CHAR_TYPE_UPPER,
+    ['K'] = CHAR_TYPE_UPPER, ['L'] = CHAR_TYPE_UPPER, ['M'] = CHAR_TYPE_UPPER, ['N'] = CHAR_TYPE_UPPER,
+    ['O'] = CHAR_TYPE_UPPER, ['P'] = CHAR_TYPE_UPPER, ['Q'] = CHAR_TYPE_UPPER, ['R'] = CHAR_TYPE_UPPER,
+    ['S'] = CHAR_TYPE_UPPER, ['T'] = CHAR_TYPE_UPPER, ['U'] = CHAR_TYPE_UPPER, ['V'] = CHAR_TYPE_UPPER,
+    ['W'] = CHAR_TYPE_UPPER, ['X'] = CHAR_TYPE_UPPER, ['Y'] = CHAR_TYPE_UPPER, ['Z'] = CHAR_TYPE_UPPER,
+
+    // Lowercase Hex: a-f
+    ['a'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['b'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+    ['c'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['d'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+    ['e'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['f'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+
+    // Lowercase Non-Hex: g-z
+    ['g'] = CHAR_TYPE_LOWER, ['h'] = CHAR_TYPE_LOWER, ['i'] = CHAR_TYPE_LOWER, ['j'] = CHAR_TYPE_LOWER,
+    ['k'] = CHAR_TYPE_LOWER, ['l'] = CHAR_TYPE_LOWER, ['m'] = CHAR_TYPE_LOWER, ['n'] = CHAR_TYPE_LOWER,
+    ['o'] = CHAR_TYPE_LOWER, ['p'] = CHAR_TYPE_LOWER, ['q'] = CHAR_TYPE_LOWER, ['r'] = CHAR_TYPE_LOWER,
+    ['s'] = CHAR_TYPE_LOWER, ['t'] = CHAR_TYPE_LOWER, ['u'] = CHAR_TYPE_LOWER, ['v'] = CHAR_TYPE_LOWER,
+    ['w'] = CHAR_TYPE_LOWER, ['x'] = CHAR_TYPE_LOWER, ['y'] = CHAR_TYPE_LOWER, ['z'] = CHAR_TYPE_LOWER,
 };
 
 #define str8_char_is_space(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_SPACE)
@@ -625,6 +648,18 @@ typedef struct ThreadEntityState {
     ThreadEntity *tail;
 }ThreadEntityState;
 
+typedef struct Stripe {
+    Arena* arena;
+    RWMutex rw_mutex;
+    CondVar cond_var;
+    void* free;
+}Stripe;
+
+typedef struct StripeArray {
+    Stripe* stripes;
+    u64 count;
+}StripeArray;
+
 global ThreadEntityState thread_entity_state;
 
 function ThreadEntity*              thread_entity_alloc(ThreadEntityType type);
@@ -640,6 +675,7 @@ function Mutex                      mutex_create();
 function void                       mutex_take(Mutex mutex);
 function void                       mutex_drop(Mutex mutex);
 function void                       mutex_destroy(Mutex mutex);
+#define mutex_scope(mutex)          scope(mutex_take(mutex), mutex_drop(mutex));
 
 function RWMutex                    rw_mutex_create();
 function void                       rw_mutex_take(RWMutex mutex, u32 write_mode);
@@ -649,6 +685,8 @@ function void                       rw_mutex_destroy(RWMutex mutex);
 #define rw_mutex_take_w(mutex)      rw_mutex_take((mutex), (1))
 #define rw_mutex_drop_r(mutex)      rw_mutex_drop((mutex), (0))
 #define rw_mutex_drop_w(mutex)      rw_mutex_drop((mutex), (1))
+#define rw_mutex_scope_r(mutex)     scope(rw_mutex_take_r(mutex), rw_mutex_drop_r(mutex))
+#define rw_mutex_scope_w(mutex)     scope(rw_mutex_take_w(mutex), rw_mutex_drop_w(mutex))
 
 function CondVar                    cond_var_create();
 function u32                        cond_var_wait(CondVar var, Mutex mutex);
@@ -669,6 +707,10 @@ function void                       semaphore_destroy(Semaphore semaphore);
 function Barrier                    barrier_create(u64 count);
 function void                       barrier_wait(Barrier barrier);
 function void                       barrier_destroy(Barrier barrier);
+
+function StripeArray                stripe_array_alloc(Arena* arena);
+function void                       stripe_array_release(StripeArray* array);
+function Stripe*                    stripe_array_get_stripe(StripeArray* array, u64 idx);
 
 ////////////////////////////////
 // Module: CLI

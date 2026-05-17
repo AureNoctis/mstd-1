@@ -307,6 +307,24 @@ function void barrier_destroy(Barrier barrier) {
     }
 }
 
+function StripeArray stripe_array_alloc(Arena* arena) {
+    StripeArray array = {0};
+
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+
+    array.count     = info.dwNumberOfProcessors;
+    array.stripes   = arena_push_array(arena, Stripe, array.count);
+
+    for (u32 i = 0; i < array.count; i++) {
+        array.stripes[i].arena = arena_alloc(MB(64));
+        array.stripes[i].rw_mutex = rw_mutex_create();
+        array.stripes[i].cond_var = cond_var_create();
+    }
+
+    return array;
+}
+
 ////////////////////////////////
 // Module: File
 
