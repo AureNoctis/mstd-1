@@ -6,6 +6,7 @@
 #define COMPILER_MSVC  1
 #else
 #define COMPILER_MSVC  0
+
 #endif
 
 #if defined(__clang__)
@@ -130,6 +131,8 @@
 
 #define bit(x) (1ULL << x)
 
+#define OPTIONS(T, ...) typedef union T {u32 opt; struct {__VA_ARGS__}; }T
+
 ////////////////////////////////
 // Base Types
 
@@ -213,6 +216,264 @@ typedef struct Handle {
 }Handle;
 
 ////////////////////////////////
+// Module: Memory
+
+#if COMPILER_MSVC
+    void* memmove(void* dest, const void* src, size_t count);
+    int memcmp(const void* buffer1, const void* buffer2, size_t count);
+    #pragma intrinsic(memcmp, memmove)
+    #define mem_set(p, byte, size)    __stosb((u8*)(p), (u8)(byte), (size))
+    #define mem_copy(dest, src, size) __movsb((u8*)(dest), (u8*)(src), (size))
+    #define mem_move(dest, src, size) memmove((dest), (src), (size))
+    #define mem_match(a, b, size)     (memcmp((a), (b), (size)) == 0)
+#elif COMPILER_CLANG || COMPILER_GCC
+    #define mem_set(p, byte, size)    __builtin_memset((p), (byte), (size))
+    #define mem_copy(dest, src, size) __builtin_memcpy((dest), (src), (size))
+    #define mem_move(dest, src, size) __builtin_memmove((dest), (src), (size))
+    #define mem_match(a, b, size)     (__builtin_memcmp((a), (b), (size)) == 0)
+#else
+#error "mem_" functions not defined for this compiler.
+#endif
+
+#define mem_zero(mem, size)                 mem_set((mem), 0, (size))
+#define mem_zero_struct(mem)                mem_zero((mem), sizeof(*(mem)))
+#define mem_zero_array(mem, count)          mem_zero((mem), sizeof(*(mem)) * (count))
+#define mem_copy_struct(dest, src)          mem_copy((dest), (src), sizeof(*(dest)))
+#define mem_copy_array(dest, src, count)    mem_copy((dest), (src), sizeof(*(dest)) * (count))
+#define mem_move_struct(dest, src)          mem_move((dest), (src), sizeof(*(dest)))
+#define mem_move_array(dest, src, count)    mem_move((dest), (src), sizeof(*(dest)) * (count))
+
+#if COMPILER_MSVC
+#define mem_align_of(T) __alignof(T)
+#elif COMPILER_CLANG
+#define mem_align_of(T) __alignof(T)
+#elif COMPILER_GCC
+#define mem_align_of(T) __alignof__(T)
+#else
+#error AlignOf not defined for this compiler.
+#endif
+
+#if COMPILER_MSVC
+#define mem_align_to(x) __declspec(align(x))
+#elif COMPILER_CLANG || COMPILER_GCC
+#define mem_align_to(x) __attribute__((aligned(x)))
+#else
+#error AlignType not defined for this compiler.
+#endif
+
+////////////////////////////////
+// Types
+
+typedef struct ArenaTempNode {
+    struct ArenaTempNode* next;
+}ArenaTempNode;
+
+typedef struct Arena {
+    u64 cursor;
+    u64 committed;
+    u64 reserved;
+    ArenaTempNode* temp_stack_tail;
+    ArenaTempNode* temp_stack_head;
+    u32 page_size;
+    u32 can_commit_large_pages;
+    u32 code_line_of_alloc;
+    char* code_file_of_alloc;
+}Arena;
+
+
+
+typedef struct DArrayHeader DArrayHeader;
+struct DArrayHeader { u64 size; };
+
+#define __darray__ union { u64 size; DArrayHeader header; };
+
+typedef struct DArrayMetaData DArrayMetaData;
+struct DArrayMetaData {
+    u8 shift;
+    u8 chunks_n;
+    u64 el_size;
+};
+
+
+
+typedef struct Str8 {
+    u8* data;
+    u64 size;
+}Str8;
+
+typedef char* Str8Fmt;
+
+typedef struct Str16 {
+    u16* data;
+    u64 size;
+}Str16;
+
+typedef struct Str32 {
+    u32* data;
+    u64 size;
+}Str32;
+
+typedef struct Str8Node {
+    struct Str8Node* next;
+    Str8 data;
+}Str8Node;
+
+typedef struct UnicodeDecode {
+    u32 inc;
+    u32 codepoint;
+}UnicodeDecode;
+
+typedef enum CharType {
+    CHAR_TYPE_SPACE     = (1 << 0),
+    CHAR_TYPE_UPPER     = (1 << 1),
+    CHAR_TYPE_LOWER     = (1 << 2),
+    CHAR_TYPE_DIGIT10   = (1 << 3),
+    CHAR_TYPE_DIGIT16   = (1 << 4)
+}CharType;
+
+mem_align_to(64) global const u8 ASCII_LUT[256] = {
+    // White-space: Tab, LF, VT, FF, CR, Space
+    [0x09] = CHAR_TYPE_SPACE, [0x0A] = CHAR_TYPE_SPACE, [0x0B] = CHAR_TYPE_SPACE,
+    [0x0C] = CHAR_TYPE_SPACE, [0x0D] = CHAR_TYPE_SPACE, [0x20] = CHAR_TYPE_SPACE,
+
+    // Digits: 0-9 (Decimal + Hex)
+    ['0'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['1'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['2'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['3'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['4'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['5'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['6'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['7'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+    ['8'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['9'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
+
+    // Uppercase Hex: A-F
+    ['A'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['B'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+    ['C'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['D'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+    ['E'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['F'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
+
+    // Uppercase Non-Hex: G-Z
+    ['G'] = CHAR_TYPE_UPPER, ['H'] = CHAR_TYPE_UPPER, ['I'] = CHAR_TYPE_UPPER, ['J'] = CHAR_TYPE_UPPER,
+    ['K'] = CHAR_TYPE_UPPER, ['L'] = CHAR_TYPE_UPPER, ['M'] = CHAR_TYPE_UPPER, ['N'] = CHAR_TYPE_UPPER,
+    ['O'] = CHAR_TYPE_UPPER, ['P'] = CHAR_TYPE_UPPER, ['Q'] = CHAR_TYPE_UPPER, ['R'] = CHAR_TYPE_UPPER,
+    ['S'] = CHAR_TYPE_UPPER, ['T'] = CHAR_TYPE_UPPER, ['U'] = CHAR_TYPE_UPPER, ['V'] = CHAR_TYPE_UPPER,
+    ['W'] = CHAR_TYPE_UPPER, ['X'] = CHAR_TYPE_UPPER, ['Y'] = CHAR_TYPE_UPPER, ['Z'] = CHAR_TYPE_UPPER,
+
+    // Lowercase Hex: a-f
+    ['a'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['b'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+    ['c'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['d'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+    ['e'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['f'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
+
+    // Lowercase Non-Hex: g-z
+    ['g'] = CHAR_TYPE_LOWER, ['h'] = CHAR_TYPE_LOWER, ['i'] = CHAR_TYPE_LOWER, ['j'] = CHAR_TYPE_LOWER,
+    ['k'] = CHAR_TYPE_LOWER, ['l'] = CHAR_TYPE_LOWER, ['m'] = CHAR_TYPE_LOWER, ['n'] = CHAR_TYPE_LOWER,
+    ['o'] = CHAR_TYPE_LOWER, ['p'] = CHAR_TYPE_LOWER, ['q'] = CHAR_TYPE_LOWER, ['r'] = CHAR_TYPE_LOWER,
+    ['s'] = CHAR_TYPE_LOWER, ['t'] = CHAR_TYPE_LOWER, ['u'] = CHAR_TYPE_LOWER, ['v'] = CHAR_TYPE_LOWER,
+    ['w'] = CHAR_TYPE_LOWER, ['x'] = CHAR_TYPE_LOWER, ['y'] = CHAR_TYPE_LOWER, ['z'] = CHAR_TYPE_LOWER,
+};
+
+
+
+typedef Handle Thread;
+typedef Handle Mutex;
+typedef Handle RWMutex;
+typedef Handle CondVar;
+typedef Handle Semaphore;
+typedef Handle Barrier;
+
+typedef void ThreadEntryPointFunctionType(void *user_ptr);
+
+typedef enum ThreadEntityType {
+    Thread_Entity_TYPE_NULL,
+    Thread_Entity_TYPE_THREAD,
+    Thread_Entity_TYPE_MUTEX,
+    Thread_Entity_TYPE_RWMUTEX,
+    Thread_Entity_TYPE_CONDITION_VARIABLE,
+    Thread_Entity_TYPE_BARRIER,
+}ThreadEntityType;
+
+typedef struct ThreadEntity {
+    struct ThreadEntity* next;
+    enum_t(ThreadEntityType, u32) type;
+    union {
+        struct {
+            ThreadEntryPointFunctionType* func;
+            void* user_data;
+            Handle handle;
+            u32 id;
+        }thread;
+        #if OS_WINDOWS
+            CRITICAL_SECTION mutex;
+            SRWLOCK rw_mutex;
+            CONDITION_VARIABLE cv;
+            SYNCHRONIZATION_BARRIER sb;
+        #endif
+    };
+}ThreadEntity;
+
+typedef struct ThreadEntityState {
+    Arena *arena;
+    CRITICAL_SECTION mutex;
+    ThreadEntity *head;
+    ThreadEntity *tail;
+}ThreadEntityState;
+
+typedef struct Stripe {
+    Arena* arena;
+    RWMutex rw_mutex;
+    CondVar cond_var;
+    void* free;
+}Stripe;
+
+typedef struct StripeArray {
+    Stripe* stripes;
+    u64 count;
+}StripeArray;
+
+
+
+typedef struct Timer {
+    u64 ticks;
+    f32 delta;
+    u64 resolution_us;
+    f64 inverse_ticks_per_us;
+}Timer;
+
+
+
+typedef Handle FileHandle;
+
+typedef enum FileAccessFlag {
+    FILE_ACCESS_FLAG_OPEN_EXISTING  = 1 << 0,
+    FILE_ACCESS_FLAG_OPEN_ALWAYS    = 1 << 1,
+    FILE_ACCESS_FLAG_SHARE_READ     = 1 << 2,
+    FILE_ACCESS_FLAG_SHARE_WRITE    = 1 << 3,
+    FILE_ACCESS_FLAG_EXECUTE        = 1 << 5,
+    FILE_ACCESS_FLAG_READ           = 1 << 6,
+    FILE_ACCESS_FLAG_WRITE          = 1 << 7,
+    FILE_ACCESS_FLAG_APPEND         = 1 << 8
+}FileAccessFlag;
+
+// FileWatcher
+
+typedef enum FileEventType {
+    FILE_EVENT_TYPE_NULL,
+    FILE_EVENT_TYPE_MODIFIED,
+    FILE_EVENT_TYPE_ADDED,
+    FILE_EVENT_TYPE_DELETED,
+    FILE_EVENT_TYPE_RENAMED,
+}FileEventType;
+
+typedef struct FileEvent {
+    Str8 file_name;
+    enum_t(FileEventType, u8) type;
+}FileEvent;
+
+#if OS_WINDOWS
+typedef struct Win32FileWatcher FileWatcher;
+#endif
+
+
+
+typedef Handle LibHandle;
+
+////////////////////////////////
 // MATH
 
 #define is_pow2(x)                  ((x) != 0 && (((x) & ((x) - 1)) == 0))
@@ -269,52 +530,6 @@ typedef struct Handle {
     #define debug_panic
 #endif
 
-////////////////////////////////
-// Module: Memory
-
-#if COMPILER_MSVC
-    void* memmove(void* dest, const void* src, size_t count);
-    int memcmp(const void* buffer1, const void* buffer2, size_t count);
-    #pragma intrinsic(memcmp, memmove)
-    #define mem_set(p, byte, size)    __stosb((u8*)(p), (u8)(byte), (size))
-    #define mem_copy(dest, src, size) __movsb((u8*)(dest), (u8*)(src), (size))
-    #define mem_move(dest, src, size) memmove((dest), (src), (size))
-    #define mem_match(a, b, size)     (memcmp((a), (b), (size)) == 0)
-#elif COMPILER_CLANG || COMPILER_GCC
-    #define mem_set(p, byte, size)    __builtin_memset((p), (byte), (size))
-    #define mem_copy(dest, src, size) __builtin_memcpy((dest), (src), (size))
-    #define mem_move(dest, src, size) __builtin_memmove((dest), (src), (size))
-    #define mem_match(a, b, size)     (__builtin_memcmp((a), (b), (size)) == 0)
-#else
-#error "mem_" functions not defined for this compiler.
-#endif
-
-#define mem_zero(mem, size)                 mem_set((mem), 0, (size))
-#define mem_zero_struct(mem)                mem_zero((mem), sizeof(*(mem)))
-#define mem_zero_array(mem, count)          mem_zero((mem), sizeof(*(mem)) * (count))
-#define mem_copy_struct(dest, src)          mem_copy((dest), (src), sizeof(*(dest)))
-#define mem_copy_array(dest, src, count)    mem_copy((dest), (src), sizeof(*(dest)) * (count))
-#define mem_move_struct(dest, src)          mem_move((dest), (src), sizeof(*(dest)))
-#define mem_move_array(dest, src, count)    mem_move((dest), (src), sizeof(*(dest)) * (count))
-
-#if COMPILER_MSVC
-#define mem_align_of(T) __alignof(T)
-#elif COMPILER_CLANG
-#define mem_align_of(T) __alignof(T)
-#elif COMPILER_GCC
-#define mem_align_of(T) __alignof__(T)
-#else
-#error AlignOf not defined for this compiler.
-#endif
-
-#if COMPILER_MSVC
-#define mem_align_to(x) __declspec(align(x))
-#elif COMPILER_CLANG || COMPILER_GCC
-#define mem_align_to(x) __attribute__((aligned(x)))
-#else
-#error AlignType not defined for this compiler.
-#endif
-
 
 function void* mem_reserve(u64 size, u32 large_pages);
 function u8 mem_commit(void* ptr, u64 size, u32 large_pages);
@@ -327,49 +542,13 @@ function u64 mem_large_page_size();
 ////////////////////////////////
 // Module: Arena
 
-typedef struct ArenaTempNode {
-    struct ArenaTempNode* next;
-}ArenaTempNode;
-
-typedef struct ArenaOpt {
-    u8 large_pages;
-}ArenaOpt;
-
-typedef struct Arena {
-    u64 cursor;
-    u64 committed;
-    u64 reserved;
-    ArenaTempNode* temp_stack_tail;
-    ArenaTempNode* temp_stack_head;
-    u32 page_size;
-    u32 can_commit_large_pages;
-    u32 code_line_of_alloc;
-    char* code_file_of_alloc;
-}Arena;
-
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
+OPTIONS(ArenaOpt, u8 large_pages; );
 function Arena*                             _arena_alloc(u64 reserve_size, char* file, u32 line, ArenaOpt opt);
-#define arena_alloc(reserve_size, ...)      _arena_alloc(reserve_size, __FILE__, __LINE__, (ArenaOpt){.large_pages = 0, __VA_ARGS__})
+#define arena_alloc(reserve_size, ...)      _arena_alloc(reserve_size, __FILE__, __LINE__, (ArenaOpt){.opt = 0, __VA_ARGS__})
 
-#define arena_print_debug_info(arena)       do {                                                            \
-                                                printf("ARENA DIAGNOSTIC (Called at %s:%d)\n"               \
-                                                       "\tReserved: %llu, Committed: %llu, Cursor: %llu\n"  \
-                                                       "\tPage Size: %u\n"                                  \
-                                                       "\tCan Commit Large Pages: %s\n"                     \
-                                                       "\tTemp Stack Tail: %p, Head: %p\n"                  \
-                                                       "\tOrigin Line: %d\n"                                \
-                                                       "\tOrigin File: %s\n",                               \
-                                                       __FILE__, __LINE__,                                  \
-                                                       (arena)->reserved, (arena)->committed,               \
-                                                       (arena)->cursor,                                     \
-                                                       (arena)->page_size,                                  \
-                                                       (arena)->can_commit_large_pages ? "Yes" : "No",      \
-                                                       (void*)(arena)->temp_stack_tail,                     \
-                                                       (void*)(arena)->temp_stack_head,                     \
-                                                       (arena)->code_line_of_alloc,                         \
-                                                       (arena)->code_file_of_alloc);                        \
-                                            } while(0)
+function Str8 arena_debug_info(Arena* arena);
 
 function void                               arena_release(Arena* arena);
 function void                               arena_reset(Arena* arena);
@@ -469,94 +648,12 @@ function void                               arena_scratch_release(Arena* arena);
 //////////////////////////////
 // DS: DArray
 
-typedef struct DArrayHeader DArrayHeader;
-struct DArrayHeader { u64 size; };
-
-#define __darray__ union { u64 size; DArrayHeader header; };
-
-typedef struct DArrayMetaData DArrayMetaData;
-struct DArrayMetaData {
-    u8 shift;
-    u8 chunks_n;
-    u64 el_size;
-};
-
 function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
 
 ////////////////////////////////
 // Strings
 
 #define str_npos (u64)(-1)
-
-typedef struct Str8 {
-    u8* data;
-    u64 size;
-}Str8;
-
-typedef struct Str16 {
-    u16* data;
-    u64 size;
-}Str16;
-
-typedef struct Str32 {
-    u32* data;
-    u64 size;
-}Str32;
-
-typedef struct Str8Node {
-    struct Str8Node* next;
-    Str8 data;
-}Str8Node;
-
-typedef struct UnicodeDecode {
-    u32 inc;
-    u32 codepoint;
-}UnicodeDecode;
-
-typedef enum CharType {
-    CHAR_TYPE_SPACE     = (1 << 0),
-    CHAR_TYPE_UPPER     = (1 << 1),
-    CHAR_TYPE_LOWER     = (1 << 2),
-    CHAR_TYPE_DIGIT10   = (1 << 3),
-    CHAR_TYPE_DIGIT16   = (1 << 4)
-}CharType;
-
-mem_align_to(64) global const u8 ASCII_LUT[256] = {
-    // White-space: Tab, LF, VT, FF, CR, Space
-    [0x09] = CHAR_TYPE_SPACE, [0x0A] = CHAR_TYPE_SPACE, [0x0B] = CHAR_TYPE_SPACE,
-    [0x0C] = CHAR_TYPE_SPACE, [0x0D] = CHAR_TYPE_SPACE, [0x20] = CHAR_TYPE_SPACE,
-
-    // Digits: 0-9 (Decimal + Hex)
-    ['0'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['1'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['2'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['3'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['4'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['5'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['6'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['7'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-    ['8'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16, ['9'] = CHAR_TYPE_DIGIT10 | CHAR_TYPE_DIGIT16,
-
-    // Uppercase Hex: A-F
-    ['A'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['B'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
-    ['C'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['D'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
-    ['E'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16, ['F'] = CHAR_TYPE_UPPER | CHAR_TYPE_DIGIT16,
-
-    // Uppercase Non-Hex: G-Z
-    ['G'] = CHAR_TYPE_UPPER, ['H'] = CHAR_TYPE_UPPER, ['I'] = CHAR_TYPE_UPPER, ['J'] = CHAR_TYPE_UPPER,
-    ['K'] = CHAR_TYPE_UPPER, ['L'] = CHAR_TYPE_UPPER, ['M'] = CHAR_TYPE_UPPER, ['N'] = CHAR_TYPE_UPPER,
-    ['O'] = CHAR_TYPE_UPPER, ['P'] = CHAR_TYPE_UPPER, ['Q'] = CHAR_TYPE_UPPER, ['R'] = CHAR_TYPE_UPPER,
-    ['S'] = CHAR_TYPE_UPPER, ['T'] = CHAR_TYPE_UPPER, ['U'] = CHAR_TYPE_UPPER, ['V'] = CHAR_TYPE_UPPER,
-    ['W'] = CHAR_TYPE_UPPER, ['X'] = CHAR_TYPE_UPPER, ['Y'] = CHAR_TYPE_UPPER, ['Z'] = CHAR_TYPE_UPPER,
-
-    // Lowercase Hex: a-f
-    ['a'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['b'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
-    ['c'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['d'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
-    ['e'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16, ['f'] = CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT16,
-
-    // Lowercase Non-Hex: g-z
-    ['g'] = CHAR_TYPE_LOWER, ['h'] = CHAR_TYPE_LOWER, ['i'] = CHAR_TYPE_LOWER, ['j'] = CHAR_TYPE_LOWER,
-    ['k'] = CHAR_TYPE_LOWER, ['l'] = CHAR_TYPE_LOWER, ['m'] = CHAR_TYPE_LOWER, ['n'] = CHAR_TYPE_LOWER,
-    ['o'] = CHAR_TYPE_LOWER, ['p'] = CHAR_TYPE_LOWER, ['q'] = CHAR_TYPE_LOWER, ['r'] = CHAR_TYPE_LOWER,
-    ['s'] = CHAR_TYPE_LOWER, ['t'] = CHAR_TYPE_LOWER, ['u'] = CHAR_TYPE_LOWER, ['v'] = CHAR_TYPE_LOWER,
-    ['w'] = CHAR_TYPE_LOWER, ['x'] = CHAR_TYPE_LOWER, ['y'] = CHAR_TYPE_LOWER, ['z'] = CHAR_TYPE_LOWER,
-};
 
 #define str8_char_is_space(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_SPACE)
 #define str8_char_is_upper(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_UPPER)
@@ -572,7 +669,7 @@ mem_align_to(64) global const u8 ASCII_LUT[256] = {
 function Str8           str8_from_cstr(u8* str);
 #define str8(str)       str8_from_cstr((u8*)str)
 function Str8           str8_of_size(Arena* arena, u64 size);
-function Str8           str8_from_fmt(Arena *arena, const char *fmt, ...);
+function Str8           str8_from_fmt(Arena *arena, Str8Fmt fmt, ...);
 function Str8           str8_concat(Arena* arena, Str8 a, Str8 b);
 function Str8           __str8_concat_n(Arena* arena, ...);
 #define                 str8_concat_n(arena, ...) __str8_concat_n(arena, __VA_ARGS__, (Str8){.size = str_npos})
@@ -601,62 +698,6 @@ function Str32          str32_from_8(Arena* arena, Str8 str);
 
 ////////////////////////////////
 // Module Thread
-
-typedef Handle Thread;
-typedef Handle Mutex;
-typedef Handle RWMutex;
-typedef Handle CondVar;
-typedef Handle Semaphore;
-typedef Handle Barrier;
-
-typedef void ThreadEntryPointFunctionType(void *user_ptr);
-
-typedef enum ThreadEntityType {
-    Thread_Entity_TYPE_NULL,
-    Thread_Entity_TYPE_THREAD,
-    Thread_Entity_TYPE_MUTEX,
-    Thread_Entity_TYPE_RWMUTEX,
-    Thread_Entity_TYPE_CONDITION_VARIABLE,
-    Thread_Entity_TYPE_BARRIER,
-}ThreadEntityType;
-
-typedef struct ThreadEntity {
-    struct ThreadEntity* next;
-    enum_t(ThreadEntityType, u32) type;
-    union {
-        struct {
-            ThreadEntryPointFunctionType* func;
-            void* user_data;
-            Handle handle;
-            u32 id;
-        }thread;
-        #if OS_WINDOWS
-            CRITICAL_SECTION mutex;
-            SRWLOCK rw_mutex;
-            CONDITION_VARIABLE cv;
-            SYNCHRONIZATION_BARRIER sb;
-        #endif
-    };
-}ThreadEntity;
-
-typedef struct ThreadEntityState {
-    Arena *arena;
-    CRITICAL_SECTION mutex;
-    ThreadEntity *head;
-    ThreadEntity *tail;
-}ThreadEntityState;
-
-typedef struct Stripe {
-    Arena* arena;
-    RWMutex rw_mutex;
-    CondVar cond_var;
-    void* free;
-}Stripe;
-
-typedef struct StripeArray {
-    Stripe* stripes;
-    u64 count;
-}StripeArray;
 
 global ThreadEntityState thread_entity_state;
 
@@ -724,32 +765,12 @@ function u64 clock_ticks_now();
 ////////////////////////////////
 // Module Timer
 
-typedef struct Timer {
-    u64 ticks;
-    f32 delta;
-    u64 resolution_us;
-    f64 inverse_ticks_per_us;
-}Timer;
-
 function Timer      timer_start();
 function void       timer_update(Timer* timer);
 function u64        timer_get_timestamp(Timer* timer);
 
 ////////////////////////////////
 // Module: File
-
-typedef Handle FileHandle;
-
-typedef enum FileAccessFlag {
-    FILE_ACCESS_FLAG_OPEN_EXISTING  = 1 << 0,
-    FILE_ACCESS_FLAG_OPEN_ALWAYS    = 1 << 1,
-    FILE_ACCESS_FLAG_SHARE_READ     = 1 << 2,
-    FILE_ACCESS_FLAG_SHARE_WRITE    = 1 << 3,
-    FILE_ACCESS_FLAG_EXECUTE        = 1 << 5,
-    FILE_ACCESS_FLAG_READ           = 1 << 6,
-    FILE_ACCESS_FLAG_WRITE          = 1 << 7,
-    FILE_ACCESS_FLAG_APPEND         = 1 << 8
-}FileAccessFlag;
 
 function u32                file_delete(Str8 path);
 function u32                file_copy(Str8 src, Str8 dest);
@@ -761,11 +782,9 @@ function FileHandle         file_open(Str8 name, FileAccessFlag flags);
 function u64                file_size(FileHandle handle);
 function void               file_close(FileHandle handle);
 
-typedef struct FileOpt {
-    u64 offset;
-    u64 size;
-}FileOpt;
 
+OPTIONS(FileOpt, u64 offset;
+u64 size;);
 function u8*                                            _file_read(Arena* arena, FileHandle handle, FileOpt opt);
 #define file_read(arena, handle, ...)                   _file_read(arena, handle, (FileOpt){.size = u64_max, __VA_ARGS__})
 #define file_read_struct(arena, handle, T, ...)         (T*)_file_read(arena, handle, (FileOpt){.size = sizeof(T), __VA_ARGS__})
@@ -778,31 +797,12 @@ function void                                           _file_write(FileHandle h
 ////////////////////////////////
 // Module: File Watcher
 
-typedef enum FileEventType {
-    FILE_EVENT_TYPE_NULL,
-    FILE_EVENT_TYPE_MODIFIED,
-    FILE_EVENT_TYPE_ADDED,
-    FILE_EVENT_TYPE_DELETED,
-    FILE_EVENT_TYPE_RENAMED,
-}FileEventType;
-
-typedef struct FileEvent {
-    Str8 file_name;
-    enum_t(FileEventType, u8) type;
-}FileEvent;
-
-#if OS_WINDOWS
-typedef struct Win32FileWatcher FileWatcher;
-#endif
-
 function FileWatcher        file_watcher_create(Str8 path, u32 watch_sub_directory);
 function FileEvent*         file_watcher_poll_events(FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
 function void               file_watcher_destroy(FileWatcher* watcher);
 
 ////////////////////////////////
 // Module: Lib
-
-typedef Handle LibHandle;
 
 function LibHandle                  lib_load(Str8 name);
 function void                       lib_unload(LibHandle handle);
