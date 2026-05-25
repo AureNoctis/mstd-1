@@ -417,7 +417,6 @@ function FileHandle file_open(Str8 name, FileAccessFlag flags) {
     HANDLE file = CreateFileW((WCHAR*)path_w32.data, access_flags, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
     if (file != INVALID_HANDLE_VALUE)
         result.val[0] = (u64)file;
-
     arena_scratch_release(arena);
     debug_assert(result.val[0]);
 
@@ -434,28 +433,28 @@ function void file_close(FileHandle handle) {
     CloseHandle((HANDLE)handle.val[0]);
 }
 
-function u8* _file_read(Arena* arena, FileHandle handle, FileOpt opt) {
+function u8* file_read_ex(Arena* arena, FileHandle handle, u64 offset, u64 size) {
     u64 total_read_size = 0;
 
     if (handle.val[0]) {
         HANDLE file = (HANDLE)handle.val[0];
-        u64 size = 0;
-        GetFileSizeEx(file, (LARGE_INTEGER*)&size);
+        u64 _size = 0;
+        GetFileSizeEx(file, (LARGE_INTEGER*)&_size);
 
-        u64 total_to_read = clamp_top(opt.size, size);
+        u64 total_to_read = clamp_top(size, _size);
         u8* out = arena_push_array(arena, u8, total_to_read);
 
-        for (u64 offset = opt.offset; total_read_size < total_to_read; ) {
+        for (u64 _offset = offset; total_read_size < total_to_read; ) {
             u64 remaining = total_to_read - total_read_size;
             DWORD to_read = (DWORD)clamp_top(remaining, u32_max);
             DWORD actual_read = 0;
 
             OVERLAPPED overlapped = { 0 };
-            overlapped.Offset = (DWORD)(offset & u32_max);
-            overlapped.OffsetHigh = (DWORD)(offset >> 32);
+            overlapped.Offset = (DWORD)(_offset & u32_max);
+            overlapped.OffsetHigh = (DWORD)(_offset >> 32);
 
             if(ReadFile(file, (u8*)out + total_read_size, to_read, &actual_read, &overlapped)) {
-                offset += actual_read;
+                _offset += actual_read;
                 total_read_size += actual_read;
                 if (actual_read < to_read)
                     break;
@@ -470,13 +469,13 @@ function u8* _file_read(Arena* arena, FileHandle handle, FileOpt opt) {
     return 0;
 }
 
-function void _file_write(FileHandle handle, void* data, FileOpt opt) {
+function void file_write_ex(FileHandle handle, void* data, u64 offset, u64 size) {
     u64 total_written = 0;
 
     if (handle.val[0]) {
-        for (u64 dest_offset = opt.offset;;) {
+        for (u64 dest_offset = offset;;) {
 
-            u64 remaining = opt.size - total_written;
+            u64 remaining = size - total_written;
             if (remaining == 0) break;
 
             DWORD to_write = (DWORD)clamp_top(remaining, MB(1));
@@ -635,6 +634,6 @@ function void lib_unload(LibHandle handle) {
     FreeLibrary((HMODULE)handle.val[0]);
 }
 
-function void* __lib_get_symbol(LibHandle lib, char* name) {
+function void*lib_get_symbol(LibHandle lib, char* name) {
     return (void*)GetProcAddress((HMODULE)lib.val[0], (LPCSTR)name);
 }

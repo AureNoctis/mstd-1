@@ -121,17 +121,19 @@
 ////////////////////////////////
 // Utils
 
-#define ___STRING___(S) #S
-#define __STRING__(S) ___STRING___(S)
+#define SYMBOL_TO_CSTR(S) #S
+#define CSTR(S) SYMBOL_TO_CSTR(S)
 
-#define ___JOIN___(a, b) a##b
-#define __JOIN__(a, b) ___JOIN___(a, b)
+#define JOIN_SYMBOLS(a, b) a##b
+#define JOIN(a, b) JOIN_SYMBOLS(a, b)
 
-#define scope(begin, end)        for(int _i_ = ((begin), 0); !_i_; _i_ += 1, (end))
+#define scope(begin, end)        for(int scope_var_i = ((begin), 0); !scope_var_i; scope_var_i += 1, (end))
 
 #define bit(x) (1ULL << x)
 
-#define OPTIONS(T, ...) typedef union T {u32 opt; struct {__VA_ARGS__}; }T
+#define NPOS (u64)(-1)
+
+#define OPTIONS(T, ...) typedef struct T { __VA_ARGS__ }T
 
 ////////////////////////////////
 // Base Types
@@ -285,7 +287,7 @@ typedef struct Arena {
 typedef struct DArrayHeader DArrayHeader;
 struct DArrayHeader { u64 size; };
 
-#define __darray__ union { u64 size; DArrayHeader header; };
+#define darray_tag union { u64 size; DArrayHeader header; };
 
 typedef struct DArrayMetaData DArrayMetaData;
 struct DArrayMetaData {
@@ -296,12 +298,17 @@ struct DArrayMetaData {
 
 
 
+typedef char* Str8Fmt;
+
 typedef struct Str8 {
     u8* data;
     u64 size;
 }Str8;
 
-typedef char* Str8Fmt;
+// An alias for Str8 used explicitly to denote a borrowed view of a string.
+// * Semantically, a `Str8View` indicates that the underlying memory is owned by someone else and its lifetime is tied to the original source.
+// * Convert to an allocated, null-terminated `Str8` using `str8_copy`.
+typedef Str8 Str8View;
 
 typedef struct Str16 {
     u16* data;
@@ -476,20 +483,20 @@ typedef Handle LibHandle;
 ////////////////////////////////
 // MATH
 
-#define is_pow2(x)                  ((x) != 0 && (((x) & ((x) - 1)) == 0))
-#define is_pow2_or_zero(x)          (((x) & ((x) - 1)) == 0)
+#define is_pow2(x) ((x) != 0 && (((x) & ((x) - 1)) == 0))
+#define is_pow2_or_zero(x) (((x) & ((x) - 1)) == 0)
 
-#define align_up_pow2(x, p)         (((x) + ((p) - 1)) & ~((p) - 1))
-#define align_down_pow2(x, p)       ((x) & ~((p) - 1))
+#define align_up_pow2(x, p) (((x) + ((p) - 1)) & ~((p) - 1))
+#define align_down_pow2(x, p) ((x) & ~((p) - 1))
 
 #define KB(x) ((x) << 10)
 #define MB(x) ((x) << 20)
 #define GB(x) ((x) << 30)
 #define TB(x) ((x) << 40)
 
-#define clamp_top(val, high)        (((val) < (high)) ? (val) : (high))
-#define clamp_bottom(val, low)      (((val) > (low)) ? (val) : (low))
-#define clamp(val, low, high)       (clamp_bottom(low, clamp_top(val, high)))
+#define clamp_top(val, high) (((val) < (high)) ? (val) : (high))
+#define clamp_bottom(val, low) (((val) > (low)) ? (val) : (low))
+#define clamp(val, low, high) (clamp_bottom(low, clamp_top(val, high)))
 
 ////////////////////////////////
 // Module: Debug
@@ -545,26 +552,26 @@ function u64 mem_large_page_size();
 #define ARENA_HEADER_SIZE align_up_pow2(sizeof(Arena), 64)
 
 OPTIONS(ArenaOpt, u8 large_pages; );
-function Arena*                             _arena_alloc(u64 reserve_size, char* file, u32 line, ArenaOpt opt);
-#define arena_alloc(reserve_size, ...)      _arena_alloc(reserve_size, __FILE__, __LINE__, (ArenaOpt){.opt = 0, __VA_ARGS__})
+function Arena* arena_alloc_opt(u64 reserve_size, char* file, u32 line, ArenaOpt opt);
+#define arena_alloc(reserve_size, ...) arena_alloc_opt(reserve_size, __FILE__, __LINE__, (ArenaOpt){__VA_ARGS__})
 
 function Str8 arena_debug_info(Arena* arena);
 
-function void                               arena_release(Arena* arena);
-function void                               arena_reset(Arena* arena);
+function void arena_release(Arena* arena);
+function void arena_reset(Arena* arena);
 
-function void*                              arena_push(Arena* arena, u64 size, u64 align);
-#define arena_push_struct(arena, T)         (T*)arena_push(arena, sizeof(T), mem_align_of(T))
-#define arena_push_array(arena, T, count)   (T*)arena_push(arena, sizeof(T) * (count), mem_align_of(T))
+function void* arena_push(Arena* arena, u64 size, u64 align);
+#define arena_push_struct(arena, T) (T*)arena_push(arena, sizeof(T), mem_align_of(T))
+#define arena_push_array(arena, T, count) (T*)arena_push(arena, sizeof(T) * (count), mem_align_of(T))
 
-function void                               arena_temp_push(Arena* arena);
-function void                               arena_temp_pop(Arena* arena);
-function void                               arena_temp_pop_all(Arena* arena);
-#define arena_temp_scope(arena)             scope(arena_temp_push(arena), arena_temp_pop(arena))
+function void arena_temp_push(Arena* arena);
+function void arena_temp_pop(Arena* arena);
+function void arena_temp_pop_all(Arena* arena);
+#define arena_temp_scope(arena) scope(arena_temp_push(arena), arena_temp_pop(arena))
 
-function Arena*                             arena_scratch_alloc();
-function void                               arena_scratch_release(Arena* arena);
-#define arena_scratch_scope(scratch)        for (Arena* scratch = arena_scratch_alloc(); scratch != NULL; (arena_scratch_release(scratch), scratch = NULL))
+function Arena* arena_scratch_alloc();
+function void arena_scratch_release(Arena* arena);
+#define arena_scratch_scope(scratch) for (Arena* scratch = arena_scratch_alloc(); scratch != NULL; (arena_scratch_release(scratch), scratch = NULL))
 
 ////////////////////////////////
 // DS: LinkList
@@ -630,20 +637,20 @@ function void                               arena_scratch_release(Arena* arena);
 
 #define dll_push_front_np(head, tail, node, next, prev) dll_push_back_np(tail, head, node, prev, next)
 
-#define dll_push_back(head, tail, node)  dll_push_back_np(head, tail, node, next, prev)
+#define dll_push_back(head, tail, node) dll_push_back_np(head, tail, node, next, prev)
 #define dll_push_front(head, tail, node) dll_push_front_np(head, tail, node, next, prev)
-#define dll_remove(head, tail, node)     dll_remove_np(head, tail, node, next, prev)
+#define dll_remove(head, tail, node) dll_remove_np(head, tail, node, next, prev)
 
 #define sll_push_front(head, tail, node) sll_push_front_n(head, tail, node, next)
-#define sll_push_back(head, tail, node)  sll_push_back_n(head, tail, node, next)
-#define sll_pop_front(head, tail)        sll_pop_front_n(head, tail, next)
-#define sll_pop_back(head, tail)         sll_pop_back_n(head, tail, next)
+#define sll_push_back(head, tail, node) sll_push_back_n(head, tail, node, next)
+#define sll_pop_front(head, tail) sll_pop_front_n(head, tail, next)
+#define sll_pop_back(head, tail) sll_pop_back_n(head, tail, next)
 
 #define sll_stack_push(head, tail, node) sll_push_front(head, tail, node)
-#define sll_stack_pop(head, tail)        sll_pop_front(head, tail)
+#define sll_stack_pop(head, tail) sll_pop_front(head, tail)
 
 #define sll_queue_push(head, tail, node) sll_push_back(head, tail, node)
-#define sll_queue_pop(head, tail)        sll_pop_front(head, tail)
+#define sll_queue_pop(head, tail) sll_pop_front(head, tail)
 
 //////////////////////////////
 // DS: DArray
@@ -651,105 +658,136 @@ function void                               arena_scratch_release(Arena* arena);
 function force_inline void* darray_handle(Arena* arena, DArrayHeader* header, DArrayMetaData meta, u64 index);
 
 ////////////////////////////////
-// Strings
+// Character classification & conversion
 
-#define str_npos (u64)(-1)
+#define char_is_space(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_SPACE)
+#define char_is_upper(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_UPPER)
+#define char_is_lower(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_LOWER)
+#define char_is_alpha(c)        (ASCII_LUT[(u8)(c)] & ( CHAR_TYPE_UPPER | CHAR_TYPE_LOWER ))
+#define char_is_alphanumeric(c) (ASCII_LUT[(u8)(c)] & ( CHAR_TYPE_UPPER | CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT10 ))
+#define char_is_numeric(c)      (ASCII_LUT[(u8)(c)] & CHAR_TYPE_DIGIT10)
+#define char_is_numeric_hex(c)  (ASCII_LUT[(u8)(c)] & CHAR_TYPE_DIGIT16)
+#define char_is_slash(c) (c == '/' || c == '\\')
 
-#define str8_char_is_space(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_SPACE)
-#define str8_char_is_upper(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_UPPER)
-#define str8_char_is_lower(c)        (ASCII_LUT[(u8)(c)] & CHAR_TYPE_LOWER)
-#define str8_char_is_alpha(c)        (ASCII_LUT[(u8)(c)] & ( CHAR_TYPE_UPPER | CHAR_TYPE_LOWER ))
-#define str8_char_is_alphanumeric(c) (ASCII_LUT[(u8)(c)] & ( CHAR_TYPE_UPPER | CHAR_TYPE_LOWER | CHAR_TYPE_DIGIT10 ))
-#define str8_char_is_numeric(c)      (ASCII_LUT[(u8)(c)] & CHAR_TYPE_DIGIT10)
-#define str8_char_is_numeric_hex(c)  (ASCII_LUT[(u8)(c)] & CHAR_TYPE_DIGIT16)
+#define char_to_upper(c) ((u8)((u8)(c) ^ (char_is_lower(c) ? 0x20 : 0)))
+#define char_to_lower(c) ((u8)((u8)(c) ^ (char_is_upper(c) ? 0x20 : 0)))
 
-#define str8_char_to_upper(c)        ((u8)((u8)(c) ^ (str8_char_is_lower(c) ? 0x20 : 0)))
-#define str8_char_to_lower(c)        ((u8)((u8)(c) ^ (str8_char_is_upper(c) ? 0x20 : 0)))
+////////////////////////////////
+// Unicode
 
-function Str8           str8_from_cstr(u8* str);
-#define str8(str)       str8_from_cstr((u8*)str)
-function Str8           str8_of_size(Arena* arena, u64 size);
-function Str8           str8_from_fmt(Arena *arena, Str8Fmt fmt, ...);
-function Str8           str8_concat(Arena* arena, Str8 a, Str8 b);
-function Str8           __str8_concat_n(Arena* arena, ...);
-#define                 str8_concat_n(arena, ...) __str8_concat_n(arena, __VA_ARGS__, (Str8){.size = str_npos})
-function void           str8_to_lower(Str8 str);
-function void           str8_to_upper(Str8 str);
-function u8             str8_match(Str8 a, Str8 b);
-function Str8           str8_copy(Arena* arena, Str8 str);
+function UnicodeDecode utf8_decode(u8* str, u64 max);
+function UnicodeDecode utf16_decode(u16* str, u64 max);
+function u32 utf8_encode(u8* str, u32 codepoint);
+function u32 utf16_encode(u16* str, u32 codepoint);
+function u32 utf8_size(u32 cp);
+function u32 utf16_size(u32 cp);
 
-function Str16          str16_from_cstr(u16* str);
-#define str16           str16_from_cstr
-function Str16          str16_of_size(Arena* arena, u64 size);
-function Str16          str16_concat(Arena* arena, Str16 a, Str16 b);
-function u8             str16_match(Str16 a, Str16 b);
-function Str16          str16_copy(Arena* arena, Str16 str);
+////////////////////////////////
+// String Constructor
 
-function UnicodeDecode  utf8_decode(u8* str, u64 max);
-function UnicodeDecode  utf16_decode(u16* str, u64 max);
-function u32            utf8_encode(u8* str, u32 codepoint);
-function u32            utf16_encode(u16* str, u32 codepoint);
-function u32            utf8_size(u32 cp);
-function u32            utf16_size(u32 cp);
-function Str8           str8_from_16(Arena* arena, Str16 str);
-function Str8           str8_from_32(Arena* arena, Str32 str);
-function Str16          str16_from_8(Arena* arena, Str8 str);
-function Str32          str32_from_8(Arena* arena, Str8 str);
+#define str8_lit(S) (Str8){.size = sizeof(S) - 1, .data = (u8*)S}
+#define str8(str) str8_from_cstr((u8*)str)
+function Str8 str8_from_cstr(u8* str);
+function Str8 str8_from_fmt(Arena *arena, Str8Fmt fmt, ...);
+function Str8 str8_from_16(Arena* arena, Str16 str);
+function Str8 str8_from_32(Arena* arena, Str32 str);
+function Str8 str8_from_mem_size(Arena* arena, u64 size);
+
+function Str16 str16_from_cstr(u16* str);
+#define str16 str16_from_cstr
+function Str16 str16_from_8(Arena* arena, Str8 str);
+function Str16 str16_from_mem_size(Arena* arena, u64 size);
+
+function Str32 str32_from_8(Arena* arena, Str8 str);
+
+////////////////////////////////
+// String Matching
+
+OPTIONS(Str8MatchOpt,
+    u8 case_insensitive;
+    u8 slash_insensitive;
+);
+
+function u32 str8_match_opt(Str8 a, Str8 b, Str8MatchOpt opt);
+#define str8_match(a, b, ...) str8_match_opt(a, b, (Str8MatchOpt){__VA_ARGS__})
+#define str8_match(a, b, ...) str8_match_opt(a, b, (Str8MatchOpt){__VA_ARGS__})
+function u64 str8_find_opt(Str8 string, Str8 substring, u64 offset, Str8MatchOpt opt);
+#define str8_find(string, substring, offset, ...) str8_find_opt(string, substring, offset, (Str8MatchOpt){__VA_ARGS__})
+function u64 str8_find_reverse_opt(Str8 string, Str8 substring, u64 offset, Str8MatchOpt opt);
+#define str8_find_reverse(string, substring, offset, ...) str8_find(string, substring, offset, (Str8MatchOpt){__VA_ARGS__})
+
+////////////////////////////////
+// String concatinate and copy
+
+function Str8 str8_concat(Arena* arena, Str8 a, Str8 b);
+function Str8 str8_concat_args_till_str_npos(Arena* arena, ...);
+#define str8_concat_n(arena, ...) str8_concat_args_till_str_npos(arena, __VA_ARGS__, (Str8){.size = NPOS})
+
+function Str8 str8_copy(Arena* arena, Str8 str);
+
+////////////////////////////////
+// String slicing
+OPTIONS(Str8ViewOpt,
+    Str8 delimiter;
+    u8 postfix;
+);
+function Str8View str8_slice_opt(Str8View str, u64 pos, Str8ViewOpt opt);
+#define str8_slice(str, pos, ...) str8_slice_opt(str, pos, (Str8ViewOpt){__VA_ARGS__})
 
 ////////////////////////////////
 // Module Thread
 
 global ThreadEntityState thread_entity_state;
 
-function ThreadEntity*              thread_entity_alloc(ThreadEntityType type);
-function void                       thread_entity_release(ThreadEntity* entity);
+function ThreadEntity* thread_entity_alloc(ThreadEntityType type);
+function void thread_entity_release(ThreadEntity* entity);
 
-function Thread                     thread_attach(ThreadEntryPointFunctionType func, void* user_data);
-function u32                        thread_join(Thread thread);
-function void                       thread_detach(Thread thread);
-function u32                        thread_id();
-function void                       thread_sleep(u32 ms);
+function Thread thread_attach(ThreadEntryPointFunctionType func, void* user_data);
+function u32 thread_join(Thread thread);
+function void thread_detach(Thread thread);
+function u32 thread_id();
+function void thread_sleep(u32 ms);
 
-function Mutex                      mutex_create();
-function void                       mutex_take(Mutex mutex);
-function void                       mutex_drop(Mutex mutex);
-function void                       mutex_destroy(Mutex mutex);
-#define mutex_scope(mutex)          scope(mutex_take(mutex), mutex_drop(mutex));
+function Mutex mutex_create();
+function void mutex_take(Mutex mutex);
+function void mutex_drop(Mutex mutex);
+function void mutex_destroy(Mutex mutex);
+#define mutex_scope(mutex) scope(mutex_take(mutex), mutex_drop(mutex));
 
-function RWMutex                    rw_mutex_create();
-function void                       rw_mutex_take(RWMutex mutex, u32 write_mode);
-function void                       rw_mutex_drop(RWMutex mutex, u32 write_mode);
-function void                       rw_mutex_destroy(RWMutex mutex);
-#define rw_mutex_take_r(mutex)      rw_mutex_take((mutex), (0))
-#define rw_mutex_take_w(mutex)      rw_mutex_take((mutex), (1))
-#define rw_mutex_drop_r(mutex)      rw_mutex_drop((mutex), (0))
-#define rw_mutex_drop_w(mutex)      rw_mutex_drop((mutex), (1))
-#define rw_mutex_scope_r(mutex)     scope(rw_mutex_take_r(mutex), rw_mutex_drop_r(mutex))
-#define rw_mutex_scope_w(mutex)     scope(rw_mutex_take_w(mutex), rw_mutex_drop_w(mutex))
+function RWMutex rw_mutex_create();
+function void rw_mutex_take(RWMutex mutex, u32 write_mode);
+function void rw_mutex_drop(RWMutex mutex, u32 write_mode);
+function void rw_mutex_destroy(RWMutex mutex);
+#define rw_mutex_take_r(mutex) rw_mutex_take((mutex), (0))
+#define rw_mutex_take_w(mutex) rw_mutex_take((mutex), (1))
+#define rw_mutex_drop_r(mutex) rw_mutex_drop((mutex), (0))
+#define rw_mutex_drop_w(mutex) rw_mutex_drop((mutex), (1))
+#define rw_mutex_scope_r(mutex) scope(rw_mutex_take_r(mutex), rw_mutex_drop_r(mutex))
+#define rw_mutex_scope_w(mutex) scope(rw_mutex_take_w(mutex), rw_mutex_drop_w(mutex))
 
-function CondVar                    cond_var_create();
-function u32                        cond_var_wait(CondVar var, Mutex mutex);
-function u32                        cond_var_wait_rw(CondVar var, RWMutex mutex, u32 write_mode);
-function void                       cond_var_signal(CondVar var);
-function void                       cond_var_broadcast(CondVar var);
-function void                       cond_var_destroy(CondVar var);
+function CondVar cond_var_create();
+function u32 cond_var_wait(CondVar var, Mutex mutex);
+function u32 cond_var_wait_rw(CondVar var, RWMutex mutex, u32 write_mode);
+function void cond_var_signal(CondVar var);
+function void cond_var_broadcast(CondVar var);
+function void cond_var_destroy(CondVar var);
 #define cond_var_wait_r(var, mutex) cond_var_wait_rw((var), (mutex), (0))
 #define cond_var_wait_w(var, mutex) cond_var_wait_rw((var), (mutex), (1))
 
-function Semaphore                  semaphore_create(u32 initial_count, u32 max_count, Str8 name);
-function Semaphore                  semaphore_open(Str8 name);
-function void                       semaphore_close(Semaphore semaphore);
-function u32                        semaphore_take(Semaphore semaphore);
-function void                       semaphore_drop(Semaphore semaphore);
-function void                       semaphore_destroy(Semaphore semaphore);
+function Semaphore semaphore_create(u32 initial_count, u32 max_count, Str8 name);
+function Semaphore semaphore_open(Str8 name);
+function void semaphore_close(Semaphore semaphore);
+function u32 semaphore_take(Semaphore semaphore);
+function void semaphore_drop(Semaphore semaphore);
+function void semaphore_destroy(Semaphore semaphore);
 
-function Barrier                    barrier_create(u64 count);
-function void                       barrier_wait(Barrier barrier);
-function void                       barrier_destroy(Barrier barrier);
+function Barrier barrier_create(u64 count);
+function void barrier_wait(Barrier barrier);
+function void barrier_destroy(Barrier barrier);
 
-function StripeArray                stripe_array_alloc(Arena* arena);
-function void                       stripe_array_release(StripeArray* array);
-function Stripe*                    stripe_array_get_stripe(StripeArray* array, u64 idx);
+function StripeArray stripe_array_alloc(Arena* arena);
+function void stripe_array_release(StripeArray* array);
+function Stripe* stripe_array_get_stripe(StripeArray* array, u64 idx);
 
 ////////////////////////////////
 // Module: CLI
@@ -765,49 +803,45 @@ function u64 clock_ticks_now();
 ////////////////////////////////
 // Module Timer
 
-function Timer      timer_start();
-function void       timer_update(Timer* timer);
-function u64        timer_get_timestamp(Timer* timer);
+function Timer timer_start();
+function void timer_update(Timer* timer);
+function u64 timer_get_timestamp(Timer* timer);
 
 ////////////////////////////////
 // Module: File
 
-function u32                file_delete(Str8 path);
-function u32                file_copy(Str8 src, Str8 dest);
-function u32                file_move(Str8 src, Str8 dest);
-function u32                file_exists(Str8 path);
-function u32                file_directory_exists(Str8 path);
+function u32 file_delete(Str8 path);
+function u32 file_copy(Str8 src, Str8 dest);
+function u32 file_move(Str8 src, Str8 dest);
+function u32 file_exists(Str8 path);
+function u32 file_directory_exists(Str8 path);
 
-function FileHandle         file_open(Str8 name, FileAccessFlag flags);
-function u64                file_size(FileHandle handle);
-function void               file_close(FileHandle handle);
+function FileHandle file_open(Str8 name, FileAccessFlag flags);
+function u64 file_size(FileHandle handle);
+function void file_close(FileHandle handle);
 
+function u8*                                            file_read_ex(Arena* arena, FileHandle handle, u64 offset, u64 size);
+#define file_read(arena, handle)                        file_read_ex(arena, handle, 0, NPOS)
+#define file_read_struct(arena, handle, T, offset)      (T*)file_read_ex(arena, handle, sizeof(T), offset)
 
-OPTIONS(FileOpt, u64 offset;
-u64 size;);
-function u8*                                            _file_read(Arena* arena, FileHandle handle, FileOpt opt);
-#define file_read(arena, handle, ...)                   _file_read(arena, handle, (FileOpt){.size = u64_max, __VA_ARGS__})
-#define file_read_struct(arena, handle, T, ...)         (T*)_file_read(arena, handle, (FileOpt){.size = sizeof(T), __VA_ARGS__})
-
-function void                                           _file_write(FileHandle handle, void* data, FileOpt opt);
-#define file_write(handle, data, size, ...)             _file_write(handle, data, (FileOpt){.size = size, __VA_ARGS__})
-#define file_write_struct(handle, struct_ptr, ...)      _file_write(handle, struct_ptr, (FileOpt){.size = sizeof(*struct_ptr), __VA_ARGS__})
-#define file_write_string(handle, str)                  file_write(handle, str.data, str.size)
+function void                                           file_write_ex(FileHandle handle, void* data, u64 offset, u64 size);
+#define file_write(handle, data)                        file_write(handle, data, 0, NPOS)
+#define file_write_struct(handle, struct_ptr, offset)   file_write_ex(handle, struct_ptr, offset, sizeof(*struct_ptr))
+#define file_write_string(handle, str)                  file_write_ex(handle, str.data, 0, str.size)
 
 ////////////////////////////////
 // Module: File Watcher
 
-function FileWatcher        file_watcher_create(Str8 path, u32 watch_sub_directory);
-function FileEvent*         file_watcher_poll_events(FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
-function void               file_watcher_destroy(FileWatcher* watcher);
+function FileWatcher file_watcher_create(Str8 path, u32 watch_sub_directory);
+function FileEvent* file_watcher_poll_events(FileWatcher* watcher, Arena* arena, u32 timeout_ms, u32* out_count);
+function void file_watcher_destroy(FileWatcher* watcher);
 
 ////////////////////////////////
 // Module: Lib
 
-function LibHandle                  lib_load(Str8 name);
-function void                       lib_unload(LibHandle handle);
-function void*                      __lib_get_symbol(LibHandle lib, char* name);
-#define lib_get_symbol(lib, name)   __lib_get_symbol(lib, __STRING__(name))
+function LibHandle lib_load(Str8 name);
+function void lib_unload(LibHandle handle);
+function void* lib_get_symbol(LibHandle lib, char* name);
 
 
 ////////////////////////////////

@@ -1,6 +1,5 @@
 #include "mstd.h"
 
-
 #if OS_WINDOWS
 #include "mstd_win32.c"
 #endif
@@ -8,7 +7,7 @@
 ////////////////////////////////
 // Arena
 
-function Arena* _arena_alloc(u64 reserve_size, char* file, u32 line, ArenaOpt opt) {
+function Arena* arena_alloc_opt(u64 reserve_size, char* file, u32 line, ArenaOpt opt) {
     u64 page_size = (opt.large_pages) ? mem_large_page_size() : mem_page_size();
     debug_assert(page_size);
 
@@ -174,7 +173,7 @@ function Str8 str8_from_cstr(u8* str) {
     return result;
 }
 
-function Str8 str8_of_size(Arena* arena, u64 size) {
+function Str8 str8_from_mem_size(Arena* arena, u64 size) {
     debug_assert(arena);
 
     Str8 result = { 0 };
@@ -198,7 +197,7 @@ function Str8 str8_from_fmt(Arena *arena, Str8Fmt fmt, ...) {
     va_end(args_copy);
 
     if (length) {
-        result = str8_of_size(arena, length);
+        result = str8_from_mem_size(arena, length);
         vsnprintf((char *)result.data, result.size + 1, fmt, args);
     }
 
@@ -206,7 +205,7 @@ function Str8 str8_from_fmt(Arena *arena, Str8Fmt fmt, ...) {
     return result;
 }
 
-function Str8 __str8_concat_n(Arena* arena, ...) {
+function Str8 str8_concat_args_till_str_npos(Arena* arena, ...) {
     va_list args;
     u64 size = 0;
 
@@ -224,7 +223,7 @@ function Str8 __str8_concat_n(Arena* arena, ...) {
     va_start(args, arena);
     for(;;) {
         Str8 s = va_arg(args, Str8);
-        if (s.data == 0 && s.size == str_npos) break;
+        if (s.data == 0 && s.size == NPOS) break;
         mem_copy(buffer + offset, s.data, s.size);
         offset += s.size;
     }
@@ -235,7 +234,7 @@ function Str8 __str8_concat_n(Arena* arena, ...) {
 
 function Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
     debug_assert(arena);
-    Str8 result = str8_of_size(arena, a.size + b.size);
+    Str8 result = str8_from_mem_size(arena, a.size + b.size);
 
     mem_copy(result.data, a.data, a.size);
     mem_copy(result.data + a.size, b.data, b.size);
@@ -244,26 +243,114 @@ function Str8 str8_concat(Arena* arena, Str8 a, Str8 b) {
     return result;
 }
 
-function void str8_to_lower(Str8 str) {
-    for (u64 i = 0; i < str.size; i++) {
-        str.data[i] = str8_char_to_lower(str.data[i]);
+function u32 str8_match_opt(Str8 a, Str8 b, Str8MatchOpt opt) {
+    u32 match = 0;
+
+    if (a.size == b.size && (opt.case_insensitive || opt.slash_insensitive)) {
+        for (u64 i = 0; i < a.size; ++i) {
+            u8 ca = a.data[i];
+            u8 cb = b.data[i];
+            if (opt.case_insensitive) {
+                ca = char_to_lower(ca);
+                cb = char_to_lower(cb);
+            }
+            if (opt.slash_insensitive) {
+                if (char_is_slash(ca)) ca = '/';
+                if (char_is_slash(cb)) cb = '/';
+            }
+            if (ca == cb) {
+                match = 1;
+                break;
+            }
+        }
     }
+    else if (a.size == b.size)
+       match = mem_match(a.data, b.data, a.size);
+
+    return match;
 }
 
-function void str8_to_upper(Str8 str) {
-    for (u64 i = 0; i < str.size; i++) {
-        str.data[i] = str8_char_to_upper(str.data[i]);
+function u64 str8_find_opt(Str8 string, Str8 substring, u64 offset, Str8MatchOpt opt) {
+    u64 result = NPOS;
+
+    if(substring.size > 0 && string.size >= (substring.size + offset)) {
+        u8* stop = string.data + string.size - substring.size + 1;
+
+        for(u8* cursor = string.data + offset; cursor < stop; cursor++) {
+            u8 c_substr = substring.data[0];
+            u8 c_str = *cursor;
+
+            if (opt.case_insensitive) {
+                c_substr = char_to_lower(c_substr);
+                c_str = char_to_lower(c_str);
+            }
+            if (opt.slash_insensitive) {
+                if (char_is_slash(c_substr)) c_substr = '/';
+                if (char_is_slash(c_str)) c_str = '/';
+            }
+            if (c_str == c_substr && str8_match_opt((Str8){.data = cursor, .size = substring.size}, substring, opt)) {
+                result = (u64)(cursor - string.data);
+                break;
+            }
+        }
     }
+
+    return result;
 }
 
-function u8 str8_match(Str8 a, Str8 b) {
-    return (a.size == b.size) ? mem_match(a.data, b.data, a.size) : 0;
+function u64 str8_find_reverse_opt(Str8 string, Str8 substring, u64 offset, Str8MatchOpt opt) {
+    u64 result = NPOS;
+
+    if (substring.size > 0 && string.size >= (substring.size + offset))
+        for(u8* cursor = string.data + string.size - offset - substring.size; cursor >= string.data; cursor--) {
+            u8 c_substr = substring.data[0];
+            u8 c_str = *cursor;
+
+            if (opt.case_insensitive) {
+                c_substr = char_to_lower(c_substr);
+                c_str = char_to_lower(c_str);
+            }
+            if (opt.slash_insensitive) {
+                if (char_is_slash(c_substr)) c_substr = '/';
+                if (char_is_slash(c_str)) c_str = '/';
+            }
+            if (c_str == c_substr && str8_match_opt((Str8){.data = cursor, .size = substring.size}, substring, opt)) {
+                result = (u64)(cursor - string.data);
+                break;
+            }
+        }
+
+    return result;
 }
 
+function Str8View str8_slice_opt(Str8View str, u64 pos, Str8ViewOpt opt) {
+    pos = clamp_top(pos, str.size);
+
+    if (opt.postfix) {
+        str.data += pos;
+        str.size -= pos;
+    }
+    else
+        str.size = pos;
+
+    if (opt.delimiter.size > 0) {
+        for (u64 i = 0; i < str.size; i++) {
+            for (u64 j = 0; j < opt.delimiter.size; j++) {
+                if(opt.delimiter.data[j] == str.data[i]) {
+                    str.size = i;
+                    goto done;
+                }
+            }
+        }
+    }
+
+    done:
+    return str;
+}
 
 function Str8 str8_copy(Arena* arena, Str8 str) {
     debug_assert(arena);
-    Str8 string = str8_of_size(arena, str.size);
+    Str8 string = str8_from_mem_size(arena, str.size);
 
     mem_copy_array(string.data, str.data, str.size);
     string.data[string.size] = 0;
@@ -282,7 +369,7 @@ function Str16 str16_from_cstr(u16* str) {
     return result;
 }
 
-function Str16 str16_of_size(Arena* arena, u64 size) {
+function Str16 str16_from_mem_size(Arena* arena, u64 size) {
     debug_assert(arena);
     Str16 result = { 0 };
 
@@ -291,31 +378,6 @@ function Str16 str16_of_size(Arena* arena, u64 size) {
     result.size = size;
 
     return result;
-}
-
-function Str16 str16_concat(Arena* arena, Str16 a, Str16 b) {
-    debug_assert(arena);
-    Str16 result = str16_of_size(arena, a.size + b.size);
-
-    mem_copy(result.data, a.data, a.size);
-    mem_copy(result.data + a.size, b.data, b.size);
-    result.data[result.size] = 0;
-
-    return result;
-}
-
-function u8 str16_match(Str16 a, Str16 b) {
-    return (a.size == b.size) ? mem_match(a.data, b.data, a.size * sizeof(u16)) : 0;
-}
-
-function Str16 str16_copy(Arena* arena, Str16 str) {
-    debug_assert(arena);
-    Str16 string = str16_of_size(arena, str.size);
-
-    mem_copy_array(string.data, str.data, str.size);
-    string.data[string.size] = 0;
-
-    return string;
 }
 
 const global u8 utf8_class[32] = {
