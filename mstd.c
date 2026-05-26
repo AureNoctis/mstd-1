@@ -20,7 +20,7 @@ function Arena* arena_alloc_opt(u64 reserve_size, char* file, u32 line, ArenaOpt
 
     Arena* arena = (Arena*)memory;
     arena->committed                = initial_commit;
-    arena->reserved                 = reserve_size;
+    arena->reserved                 = actual_reserve;
     arena->page_size                = page_size;
     arena->cursor                   = ARENA_HEADER_SIZE;
     arena->can_commit_large_pages   = opt.large_pages;
