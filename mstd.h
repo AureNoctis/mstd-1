@@ -278,8 +278,11 @@ typedef struct Arena {
     ArenaTempNode* temp_stack_head;
     u32 page_size;
     u32 can_commit_large_pages;
+
+    #if MSTD_DEBUG
     u32 code_line_of_alloc;
     char* code_file_of_alloc;
+    #endif
 }Arena;
 
 
@@ -554,8 +557,6 @@ function u64 mem_large_page_size();
 OPTIONS(ArenaOpt, u8 large_pages; );
 function Arena* arena_alloc_opt(u64 reserve_size, char* file, u32 line, ArenaOpt opt);
 #define arena_alloc(reserve_size, ...) arena_alloc_opt(reserve_size, __FILE__, __LINE__, (ArenaOpt){__VA_ARGS__})
-
-function Str8 arena_debug_info(Arena* arena);
 
 function void arena_release(Arena* arena);
 function void arena_reset(Arena* arena);

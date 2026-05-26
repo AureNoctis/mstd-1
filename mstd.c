@@ -38,26 +38,6 @@ function Arena* arena_alloc_opt(u64 reserve_size, char* file, u32 line, ArenaOpt
     return arena;
 }
 
-function Str8 arena_debug_info(Arena* arena) {
-    return str8_from_fmt(arena, "ARENA DIAGNOSTIC (Called at %s:%d)\n"
-                                "\tReserved: %llu, Committed: %llu, Cursor: %llu\n"
-                                "\tPage Size: %u\n"
-                                "\tCan Commit Large Pages: %s\n"
-                                "\tTemp Stack Tail: %p, Head: %p\n"
-                                "\tOrigin Line: %d\n"
-                                "\tOrigin File: %s\n",
-                                __FILE__, __LINE__,
-                                (arena)->reserved, (arena)->committed,
-                                (arena)->cursor,
-                                (arena)->page_size,
-                                (arena)->can_commit_large_pages ? "Yes" : "No",
-                                (void*)(arena)->temp_stack_tail,
-                                (void*)(arena)->temp_stack_head,
-                                (arena)->code_line_of_alloc,
-                                (arena)->code_file_of_alloc
-    );
-}
-
 function void arena_release(Arena* arena) {
     debug_assert(arena);
     mem_release(arena, arena->reserved);
