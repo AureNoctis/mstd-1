@@ -266,7 +266,7 @@ int memcmp(const void *buffer1, const void *buffer2, size_t count);
 #define mem_zero_array(mem, count) mem_zero((mem), sizeof(*(mem)) * (count))
 #define mem_copy_struct(dest, src) mem_copy((dest), (src), sizeof(*(dest)))
 #define mem_copy_array(dest, src, count)                                       \
-    mem_copy((dest), (src), sizeof(*(dest)) * (count))
+  mem_copy((dest), (src), sizeof(*(dest)) * (count))
 #define mem_move_struct(dest, src) mem_move((dest), (src), sizeof(*(dest)))
 #define mem_move_array(dest, src, count)                                       \
     mem_move((dest), (src), sizeof(*(dest)) * (count))
@@ -839,6 +839,8 @@ typedef struct FileEvent {
 
 #if OS_WINDOWS
 typedef struct Win32FileWatcher FileWatcher;
+#elif OS_LINUX
+typedef struct LinuxFileWatcher FileWatcher;
 #endif
 
 function u32 file_delete(Str8 path);
