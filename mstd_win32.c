@@ -1,4 +1,9 @@
 #include "mstd.h"
+#define NOGDI
+#define NOUSER
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
 #pragma comment(lib, "user32")
 #pragma comment(lib, "advapi32")
 
@@ -65,6 +70,43 @@ function void cli_attach_if_exists() {
 
 ////////////////////////////////
 // Module: Thread
+
+typedef enum ThreadEntityType {
+    Thread_Entity_TYPE_NULL,
+    Thread_Entity_TYPE_THREAD,
+    Thread_Entity_TYPE_MUTEX,
+    Thread_Entity_TYPE_RWMUTEX,
+    Thread_Entity_TYPE_CONDITION_VARIABLE,
+    Thread_Entity_TYPE_BARRIER,
+}ThreadEntityType;
+
+typedef struct ThreadEntity {
+    struct ThreadEntity* next;
+    enum_t(ThreadEntityType, u32) type;
+    union {
+        struct {
+            ThreadEntryPointFunctionType* func;
+            void* user_data;
+            Handle handle;
+            u32 id;
+        }thread;
+        #if OS_WINDOWS
+            CRITICAL_SECTION mutex;
+            SRWLOCK rw_mutex;
+            CONDITION_VARIABLE cv;
+            SYNCHRONIZATION_BARRIER sb;
+        #endif
+    };
+}ThreadEntity;
+
+typedef struct ThreadEntityState {
+    Arena *arena;
+    CRITICAL_SECTION mutex;
+    ThreadEntity *head;
+    ThreadEntity *tail;
+}ThreadEntityState;
+
+global ThreadEntityState thread_entity_state;
 
 function DWORD WINAPI thread_entry_point(LPVOID lpParameter) {
     ThreadEntity* entity = (ThreadEntity*)lpParameter;

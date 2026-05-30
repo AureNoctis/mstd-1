@@ -165,7 +165,7 @@ function Str8 str8_from_mem_size(Arena* arena, u64 size) {
     return result;
 }
 
-function Str8 str8_from_fmt(Arena *arena, Str8Fmt fmt, ...) {
+function Str8 str8_from_fmt(Arena *arena, char* fmt, ...) {
     Str8 result = {0};
 
     va_list args;
@@ -410,7 +410,7 @@ function UnicodeDecode utf8_decode(u8* str, u64 max) {
 }
 
 function UnicodeDecode utf16_decode(u16* str, u64 max) {
-    UnicodeDecode result = { 1, UINT32_MAX };
+    UnicodeDecode result = { 1, u32_max };
     result.codepoint = str[0];
     result.inc = 1;
     if (max > 1 && 0xD800 <= str[0] && str[0] < 0xDC00 && 0xDC00 <= str[1] && str[1] < 0xE000) {
